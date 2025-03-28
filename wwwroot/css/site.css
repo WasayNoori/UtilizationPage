@@ -1,0 +1,75 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+}
+
+
+.page-title {
+    font-family: Luminari, fantasy;
+    font-size: 2rem;
+    color: #00008B;
+    margin-bottom: 10px;
+}
+
+#timeTrackingTable {
+    background-color: #F5F5F5; /* Light gray, adjust as needed */
+
+}
+
+.tabulator .tabulator-header {
+    background-color: #87CEEB !important; /* Light Blue */
+    color: #333 !important; /* Dark text */
+    font-weight: bold;
+}
+
+
+
+.tabulator-row:nth-child(even) {
+    background-color: white;
+}
+
+.tabulator-row:nth-child(odd) {
+    background-color: #87CEEB; /* Pale Turquoise */
+}
+
+.tabulator-tableholder {
+    background-color: #F5F5F5; /* Matches the table background */
+}
+.tabulator .tabulator-row.tabulator-tree-level-0 {
+    font-weight: bold;
+}
+
+
+/*.weekly-row {
+    background-color: #f0f0f0;
+    font-weight:bold;
+}
+
+.username-cell {
+    text-align:center;
+    font-style: italic;
+}
+
+
+#weeklyTotalsThis td, #weeklyTotalsThis th,
+#weeklyTotalsLast td, #weeklyTotalsLast th {
+    text-align: center;*/
+}

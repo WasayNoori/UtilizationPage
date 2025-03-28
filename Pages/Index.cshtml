@@ -1,0 +1,585 @@
+﻿@page
+@model IndexModel
+@using System.Security.Claims 
+@{
+    ViewData["Title"] = "Utilization Data";
+}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+@functions {
+    public string GetUserEmail(System.Security.Claims.ClaimsPrincipal user)
+    {
+        return user.FindFirstValue("preferred_username") ?? user.FindFirstValue(ClaimTypes.Email);
+    }
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <div style="font-family: 'Poppins', sans-serif; font-weight: 300; color: #0d6efd; font-size: 1.1rem; margin-bottom: 5px;">Hawk Ridge Systems Engineering</div>
+            <div class="d-flex align-items-center">
+                <h1 class="page-title mb-0">Utilization</h1>
+                <button id="refreshButton" class="btn btn-link btn-sm p-0 ms-2" style="color: #0d6efd; font-size: 1.2rem;">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div style="font-size: 1.2rem; margin-top: 5px;">Hello <span id="userGreeting" style="font-weight: bold;"></span></div>
+        </div>
+        <div class="d-flex flex-column align-items-end">
+            <div id="lastUpdateTime" style="font-size: 0.75rem; color: #6c757d; margin-bottom: 5px;"></div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="user-select-container">
+                    <label for="userSelect" class="form-label me-2">Select User:</label>
+                    <select id="userSelect" class="form-select" style="width: auto;" onchange="handleUserChange(this.value)">
+                        <option value="">Loading users...</option>
+                    </select>
+                </div>
+                <div class="time-filter-container" style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                    <label for="timeFilter" class="form-label me-2" style="font-weight: 500; color: #0d6efd;">Time Period:</label>
+                    <select id="timeFilter" class="form-select" style="width: auto; min-width: 200px; border-color: #0d6efd;" onchange="handleTimeFilterChange(this.value)">
+                        <optgroup label="Recent Periods">
+                            <option value="Today">Today</option>
+                            <option value="Yesterday">Yesterday</option>
+                            <option value="TwoWeeksAgo">Last 2 Weeks</option>
+                            <option value="ThisWeek">This Week</option>
+                            <option value="LastWeek">Last Week</option>
+                        </optgroup>
+                        <optgroup label="Monthly View">
+                            @{
+                                var currentMonth = DateTime.Now.Month;
+                                var currentYear = DateTime.Now.Year;
+                                
+                                // Generate all months for current year in chronological order
+                                for (int month = 1; month <= 12; month++) {
+                                    var date = new DateTime(currentYear, month, 1);
+                                    var monthName = date.ToString("MMMM");
+                                    var value = $"Month_{currentYear}_{month:00}";
+                                    var isFutureMonth = month > currentMonth;
+                                    
+                                    if (isFutureMonth) {
+                                        <option value="@value" disabled style="color: #aaa;">@monthName</option>
+                                    } else {
+                                        <option value="@value">@monthName</option>
+                                    }
+                                }
+                            }
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="position: relative;">
+        <div id="loadingOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 1000; text-align: center; padding-top: 200px;">
+            Loading data...
+        </div>
+        <div id="timeTrackingTable"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.0.7/js/tabulator.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.0.7/css/tabulator.min.css">
+
+    <script>
+        var table = new Tabulator("#timeTrackingTable", {
+            layout: "fitColumns",
+            dataTree: true,
+            dataTreeStartExpanded: false,
+            dataTreeChildField: "children",
+            height: "400px",
+            columns: [
+                { 
+                    title: "Board - Items", 
+                    field: "task", 
+                    headerSort: false,
+                    formatter: function(cell, formatterParams, onRendered) {
+                        return cell.getValue();
+                    }
+                },
+                { 
+                    title: "Date", 
+                    field: "entryDate", 
+                    headerSort: false,
+                    formatter: function(cell, formatterParams, onRendered) {
+                        return cell.getValue();
+                    }
+                },
+                { 
+                    title: "Hours", 
+                    field: "hours", 
+                    hozAlign: "left",
+                    formatter: function(cell, formatterParams, onRendered) {
+                        return cell.getValue();
+                    }
+                },
+                {
+                    title: "% of Total",
+                    field: "percentage",
+                    hozAlign: "left",
+                    formatter: function(cell, formatterParams, onRendered) {
+                        const value = cell.getValue();
+                        const row = cell.getRow();
+                        const data = row.getData();
+                        // Only show percentage for top-level rows (boards)
+                        if (!data.children) return "";
+                        return value ? value + "%" : "";
+                    }
+                },
+                {
+                    title: "Category",
+                    field: "categoryName",
+                    headerSort: false,
+                    formatter: function(cell, formatterParams, onRendered) {
+                        const value = cell.getValue();
+                        const row = cell.getRow();
+                        const data = row.getData();
+                        // Only show category for top-level rows (boards)
+                        if (!data.children) return "";
+                        return value || "";
+                    }
+                }
+            ]
+        });
+
+        // Cache object to store data
+        const dataCache = {
+            entries: {},
+            weeklySummary: {},
+            monthlyData: {},
+            monthlyComparison: null
+        };
+
+        // Different cache durations
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes for regular data
+        const MONTHLY_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours for past months
+
+        function isCacheValid(cacheKey, type = 'regular') {
+            const cache = type === 'monthly' ? dataCache.monthlyData : dataCache.entries;
+            const cacheDuration = type === 'monthly' ? MONTHLY_CACHE_DURATION : CACHE_DURATION;
+            const cachedData = cache[cacheKey];
+            
+            if (!cachedData) return false;
+            
+            const now = new Date().getTime();
+            
+            // If it's a past month, use longer cache duration
+            if (type === 'monthly') {
+                const currentMonth = new Date().getMonth() + 1;
+                const selectedMonth = parseInt(cacheKey.split('_')[1]);
+                if (selectedMonth < currentMonth) {
+                    return true; // Past months don't expire
+                }
+            }
+            
+            return (now - cachedData.timestamp) < cacheDuration;
+        }
+
+        function handleTimeFilterChange(value) {
+            // Prevent selection of disabled months
+            const select = document.getElementById('timeFilter');
+            const selectedOption = select.options[select.selectedIndex];
+            
+            if (selectedOption.disabled) {
+                // Revert to the previous selection
+                select.value = select.dataset.lastValue || 'ThisWeek';
+                return;
+            }
+            
+            // Store the current valid selection
+            select.dataset.lastValue = value;
+            
+            const isMonthly = value.startsWith('Month_');
+            loadData(false, isMonthly);
+            
+            // Only load weekly totals for recent periods
+            if (!isMonthly) {
+                loadWeeklyTotals('THIS', 'weeklyTotalsThis');
+                loadWeeklyTotals('LAST', 'weeklyTotalsLast');
+            }
+            loadMonthlyComparison();
+        }
+
+        function loadData(forceRefresh = false, isMonthly = false) {
+            var overlay = document.getElementById('loadingOverlay');
+            const filterValue = document.getElementById('timeFilter').value;
+            
+            console.log('Loading data with:', { filterValue, currentUserEmail, forceRefresh, isMonthly });
+            
+            // Check cache first
+            const cacheType = isMonthly ? 'monthly' : 'regular';
+            if (!forceRefresh && isCacheValid(filterValue, cacheType)) {
+                console.log('Using cached data for ' + filterValue);
+                const cache = cacheType === 'monthly' ? dataCache.monthlyData : dataCache.entries;
+                console.log('Cached data structure:', JSON.stringify(cache[filterValue].data, null, 2));
+                table.setData(cache[filterValue].data);
+                return;
+            }
+
+            overlay.style.display = 'block';
+            
+            fetch(`/Index?handler=Entries&filter=${encodeURIComponent(filterValue)}&userEmail=${encodeURIComponent(currentUserEmail)}`)
+                .then(response => response.json())
+                .then(result => {
+                    console.log('Received response:', result);
+                    if (!result.success) {
+                        console.error('Error in response:', result.error);
+                        return;
+                    }
+                    
+                    // Calculate total hours and percentages for boards
+                    const data = result.data;
+                    const totalHours = data.reduce((total, board) => {
+                        const hours = parseHours(board.hours);
+                        return total + hours;
+                    }, 0);
+
+                    // Add percentage to board-level entries
+                    data.forEach(board => {
+                        const hours = parseHours(board.hours);
+                        board.percentage = Math.round((hours / totalHours) * 100 * 10) / 10;
+                    });
+                    
+                    // Store in appropriate cache
+                    if (isMonthly) {
+                        dataCache.monthlyData[filterValue] = {
+                            data: data,
+                            timestamp: new Date().getTime()
+                        };
+                    } else {
+                        dataCache.entries[filterValue] = {
+                            data: data,
+                            timestamp: new Date().getTime()
+                        };
+                    }
+                    
+                    table.setData(data);
+                    overlay.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    overlay.style.display = 'none';
+                });
+        }
+
+        // Helper function to parse hours from string format
+        function parseHours(hoursStr) {
+            let total = 0;
+            const parts = hoursStr.split(' ');
+            parts.forEach(part => {
+                if (part.endsWith('h')) {
+                    total += parseFloat(part.replace('h', ''));
+                } else if (part.endsWith('m')) {
+                    total += parseFloat(part.replace('m', '')) / 60;
+                }
+            });
+            return total;
+        }
+
+        function loadWeeklyTotals(weekOption, targetElementId, forceRefresh = false) {
+            // Check cache first
+            if (!forceRefresh && dataCache.weeklySummary[weekOption] && 
+                (new Date().getTime() - dataCache.weeklySummary[weekOption].timestamp) < CACHE_DURATION) {
+                updateWeeklyTotalsTable(targetElementId, dataCache.weeklySummary[weekOption].data);
+                return;
+            }
+
+            fetch(`/Index?handler=WeeklySummary&weekOption=${weekOption}&userEmail=${encodeURIComponent(currentUserEmail)}`)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        // Store in cache
+                        dataCache.weeklySummary[weekOption] = {
+                            data: result.data,
+                            timestamp: new Date().getTime()
+                        };
+                        updateWeeklyTotalsTable(targetElementId, result.data);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateWeeklyTotalsTable(targetElementId, data) {
+            let summaryRow = `
+                <tr>
+                    <td>${data.userName}</td>
+                    <td class="hours-cell" data-hours="${data.monday < 6}">${data.monday}</td>
+                    <td class="hours-cell" data-hours="${data.tuesday < 6}">${data.tuesday}</td>
+                    <td class="hours-cell" data-hours="${data.wednesday < 6}">${data.wednesday}</td>
+                    <td class="hours-cell" data-hours="${data.thursday < 6}">${data.thursday}</td>
+                    <td class="hours-cell" data-hours="${data.friday < 6}">${data.friday}</td>
+                </tr>`;
+            document.getElementById(targetElementId).innerHTML = summaryRow;
+        }
+
+        function loadMonthlyComparison(forceRefresh = false) {
+            // Check cache first
+            if (!forceRefresh && dataCache.monthlyComparison && 
+                (new Date().getTime() - dataCache.monthlyComparison.timestamp) < CACHE_DURATION) {
+                updateMonthlyComparisonTable(dataCache.monthlyComparison.data);
+                return;
+            }
+
+            fetch(`/Index?handler=MonthlyComparison&userEmail=${encodeURIComponent(currentUserEmail)}`)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        // Store in cache
+                        dataCache.monthlyComparison = {
+                            data: result.data,
+                            timestamp: new Date().getTime()
+                        };
+                        updateMonthlyComparisonTable(result.data);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateMonthlyComparisonTable(data) {
+            // Create an array of 12 months initialized with null values
+            const userHours = new Array(12).fill(null);
+            const teamAverage = new Array(12).fill(null);
+
+            // Fill in the actual values
+            data.forEach(item => {
+                const monthIndex = new Date(item.monthName + ' 1, 2000').getMonth();
+                userHours[monthIndex] = item.userHours;
+                teamAverage[monthIndex] = item.teamAverage;
+            });
+
+            // Create the table rows
+            const rows = `
+                <tr>
+                    <td><strong>User Hours</strong></td>
+                    ${userHours.map((hours, index) => {
+                        const avg = teamAverage[index];
+                        const shouldHighlight = hours !== null && avg !== null && hours < (avg * 0.75); // Highlight if 25% below average
+                        return `<td class="hours-cell" data-hours="${shouldHighlight}">${hours !== null ? hours : '-'}</td>`;
+                    }).join('')}
+                </tr>
+                <tr>
+                    <td><strong>Team Average</strong></td>
+                    ${teamAverage.map(avg => `<td>${avg !== null ? avg : '-'}</td>`).join('')}
+                </tr>`;
+
+            document.getElementById('monthlyComparison').innerHTML = rows;
+        }
+
+        let currentUserType = null;
+        let currentUserEmail = null;
+
+        function loadUsers() {
+            fetch('/Index?handler=Users')
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        const userSelect = document.getElementById('userSelect');
+                        const loggedInUserEmail = '@GetUserEmail(User)';  // Use the GetUserEmail helper function
+                        
+                        console.log('Authentication email:', loggedInUserEmail); // Debug log
+                        console.log('All users from database:', result.data.map(u => ({ name: u.userName, email: u.email }))); // Debug log
+                        
+                        // Find the current user in the results
+                        const currentUser = result.data.find(user => {
+                            console.log(`Comparing ${user.email.toLowerCase()} with ${loggedInUserEmail.toLowerCase()}`); // Debug log
+                            return user.email.toLowerCase() === loggedInUserEmail.toLowerCase();
+                        });
+                        
+                        if (currentUser) {
+                            console.log('Found current user:', currentUser); // Debug log
+                            // Set the current user type and email
+                            currentUserType = currentUser.userType;
+                            currentUserEmail = currentUser.email; // Set the global currentUserEmail
+                            
+                            // Update the greeting
+                            document.getElementById('userGreeting').textContent = currentUser.userName;
+                            
+                            // Populate dropdown with current user first
+                            userSelect.innerHTML = `<option value="${currentUser.email}">${currentUser.userName}</option>`;
+                            
+                            // Add other users
+                            result.data.forEach(user => {
+                                if (user.email !== currentUser.email) {
+                                    userSelect.innerHTML += `<option value="${user.email}">${user.userName}</option>`;
+                                }
+                            });
+                            
+                            // Set disabled state
+                            userSelect.disabled = currentUserType !== 'Manager';
+                            
+                            // Load initial data
+                            const currentValue = document.getElementById('timeFilter').value;
+                            const isMonthly = currentValue.startsWith('Month_');
+                            loadData(false, isMonthly);
+                            if (!isMonthly) {
+                                loadWeeklyTotals('THIS', 'weeklyTotalsThis');
+                                loadWeeklyTotals('LAST', 'weeklyTotalsLast');
+                            }
+                            loadMonthlyComparison();
+                        } else {
+                            console.error('Current user not found in users list. Email:', loggedInUserEmail);
+                        }
+                    } else {
+                        console.error('Failed to load users:', result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading users:', error);
+                });
+        }
+
+        function handleUserChange(email) {
+            if (!email) return;
+            
+            console.log('User changed to:', email);
+            currentUserEmail = email;
+            
+            const currentValue = document.getElementById('timeFilter').value;
+            const isMonthly = currentValue.startsWith('Month_');
+            loadData(true, isMonthly);
+            
+            loadWeeklyTotals('THIS', 'weeklyTotalsThis', true);
+            loadWeeklyTotals('LAST', 'weeklyTotalsLast', true);
+            loadMonthlyComparison(true);
+        }
+
+        // Add this function to format the timestamp
+        function formatLastUpdateTime(timestamp) {
+            // Create date object from UTC timestamp
+            const updateTime = new Date(timestamp + 'Z'); // Append 'Z' to ensure UTC interpretation
+            const now = new Date();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            // Convert to PDT/PST
+            const options = {
+                hour: 'numeric',
+                minute: 'numeric',
+                timeZone: 'America/Los_Angeles',
+                hour12: true
+            };
+
+            const timeStr = updateTime.toLocaleString('en-US', options);
+            const dateOptions = {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'America/Los_Angeles'
+            };
+
+            // Compare dates in PDT
+            const updateTimePDT = new Date(updateTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            const nowPDT = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            const yesterdayPDT = new Date(yesterday.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+
+            // Check if it's today in PDT
+            if (updateTimePDT.toDateString() === nowPDT.toDateString()) {
+                return `Last Updated ${timeStr} (PDT) Today`;
+            }
+            // Check if it's yesterday in PDT
+            else if (updateTimePDT.toDateString() === yesterdayPDT.toDateString()) {
+                return `Last Updated ${timeStr} (PDT) Yesterday`;
+            }
+            // For older dates
+            else {
+                const dateStr = updateTime.toLocaleString('en-US', dateOptions);
+                return `Last Updated ${dateStr} ${timeStr} (PDT)`;
+            }
+        }
+
+        function loadLastUpdateTime() {
+            fetch('/Index?handler=LatestUpdate')
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        const formattedTime = formatLastUpdateTime(result.timestamp);
+                        document.getElementById('lastUpdateTime').textContent = formattedTime;
+                    }
+                })
+                .catch(error => console.error('Error loading update time:', error));
+        }
+
+        // Update the document.addEventListener section to include loadLastUpdateTime
+        document.addEventListener("DOMContentLoaded", () => {
+            addRefreshButton();
+            loadUsers();
+            loadLastUpdateTime();
+        });
+
+        // Update the refresh button click handler to also refresh the last update time
+        function addRefreshButton() {
+            const refreshButton = document.getElementById('refreshButton');
+            refreshButton.onclick = () => {
+                console.log('Refresh button clicked, currentUserEmail:', currentUserEmail);
+                const currentValue = document.getElementById('timeFilter').value;
+                const isMonthly = currentValue.startsWith('Month_');
+                loadData(true, isMonthly);
+                if (!isMonthly) {
+                    loadWeeklyTotals('THIS', 'weeklyTotalsThis', true);
+                    loadWeeklyTotals('LAST', 'weeklyTotalsLast', true);
+                }
+                loadMonthlyComparison(true);
+                loadLastUpdateTime();
+            };
+        }
+    </script>
+
+    <div style="display:flex; gap:20px; margin-top:20px;">
+        <table class="table" style="width:45%;">
+            <thead>
+                <tr><th colspan="6">This Week's Hours</th></tr>
+                <tr>
+                    <th></th>
+                    <th>Mon</th>
+                    <th>Tue</th>
+                    <th>Wed</th>
+                    <th>Thu</th>
+                    <th>Fri</th>
+                </tr>
+            </thead>
+            <tbody id="weeklyTotalsThis"></tbody>
+        </table>
+
+        <table class="table" style="width:45%;">
+            <thead>
+                <tr><th colspan="6">Last Week's Hours</th></tr>
+                <tr>
+                    <th></th>
+                    <th>Mon</th>
+                    <th>Tue</th>
+                    <th>Wed</th>
+                    <th>Thu</th>
+                    <th>Fri</th>
+                </tr>
+            </thead>
+            <tbody id="weeklyTotalsLast"></tbody>
+        </table>
+    </div>
+
+    <div style="margin: 30px 0; text-align: center;">
+        <div style="display: inline-block; width: 100%; height: 2px; background: linear-gradient(to right, transparent, #20c997, transparent);"></div>
+    </div>
+
+    <div style="margin-top: 20px; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+        <table class="table" style="width: 100%;">
+            <thead>
+                <tr><th colspan="13">Monthly User Hours vs Team Average</th></tr>
+                <tr>
+                    <th>Metric</th>
+                    <th>Jan</th>
+                    <th>Feb</th>
+                    <th>Mar</th>
+                    <th>Apr</th>
+                    <th>May</th>
+                    <th>Jun</th>
+                    <th>Jul</th>
+                    <th>Aug</th>
+                    <th>Sep</th>
+                    <th>Oct</th>
+                    <th>Nov</th>
+                    <th>Dec</th>
+                </tr>
+            </thead>
+            <tbody id="monthlyComparison"></tbody>
+        </table>
+    </div>
+</div>

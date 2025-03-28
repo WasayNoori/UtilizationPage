@@ -1,0 +1,176 @@
+﻿// Razor Page Model (Index.cshtml.cs)
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using UtilizationPage_ASP.Services;
+using System.Security.Claims;
+using Microsoft.Extensions.Configuration;
+using System.Data.SqlClient;
+
+
+[Authorize]
+public class IndexModel : PageModel
+{
+    private readonly EntryService _entryService;
+    private readonly ILogger<IndexModel> _logger;
+    private readonly IConfiguration _configuration;
+    public WeeklyHoursSummary WeeklyTotals { get; set; }
+
+    public IndexModel(EntryService entryService, ILogger<IndexModel> logger, IConfiguration configuration)
+    {
+        _entryService = entryService;
+        _logger = logger;
+        _configuration = configuration;
+    }
+
+    public void OnGet() { }
+
+    private string GetDevelopmentUserEmail() => _configuration["TestUser:Email"] ?? "wasay@hawkridgesys.com";
+
+    private string GetUserEmail(ClaimsPrincipal user) => user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("preferred_username");
+
+    private string GetSelectedUserEmail(string userEmail = null)
+    {
+        bool isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+        return !string.IsNullOrEmpty(userEmail) ? userEmail : 
+               isDevelopment ? GetDevelopmentUserEmail() : 
+               GetUserEmail(User);
+    }
+
+    public async Task<IActionResult> OnGetEntriesAsync(string filter, string userEmail = null)
+    {
+        try
+        {
+            var selectedUserEmail = GetSelectedUserEmail(userEmail);
+            var entries = await _entryService.GetEntriesAsync(filter, selectedUserEmail);
+            return new JsonResult(new { success = true, data = entries });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting entries: {ex.Message}");
+            return new JsonResult(new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> OnGetWeeklySummaryAsync(string weekOption, string userEmail = null)
+    {
+        try
+        {
+            var selectedUserEmail = GetSelectedUserEmail(userEmail);
+            var data = await _entryService.GetWeeklyHoursSummaryAsync(weekOption, selectedUserEmail);
+            return new JsonResult(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in OnGetWeeklySummaryAsync: {ex.Message}");
+            return new JsonResult(new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> OnGetMonthlyComparisonAsync(string userEmail = null)
+    {
+        try
+        {
+            var selectedUserEmail = GetSelectedUserEmail(userEmail);
+            var data = await _entryService.GetMonthlyHoursComparisonAsync(selectedUserEmail);
+            return new JsonResult(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in OnGetMonthlyComparisonAsync: {ex.Message}");
+            return new JsonResult(new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> OnGetUsers()
+    {
+        try
+        {
+            var currentUserEmail = GetSelectedUserEmail();
+            var currentUser = await _entryService.GetUserByEmailAsync(currentUserEmail);
+            
+            if (currentUser == null)
+            {
+                return new JsonResult(new { success = false, message = "User not found" });
+            }
+
+            var users = await _entryService.GetAllUsersAsync();
+            return new JsonResult(new { success = true, data = users });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in OnGetUsers: {ex.Message}");
+            return new JsonResult(new { success = false, message = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> OnGetUserInfoAsync(string email)
+    {
+        try
+        {
+            var user = await _entryService.GetUserByEmailAsync(email);
+            return user == null 
+                ? new JsonResult(new { success = false, message = "User not found" })
+                : new JsonResult(new { success = true, data = user });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in OnGetUserInfoAsync: {ex.Message}");
+            return new JsonResult(new { success = false, message = "Error retrieving user information" });
+        }
+    }
+
+    // Function to format hours properly
+    string FormatHours(double duration)
+    {
+        if (duration < 1)
+        {
+            int minutes = (int)Math.Round(duration * 60);  // Convert fraction of an hour to minutes
+            return $"{minutes} min";
+        }
+        else
+        {
+            int hours = (int)duration;
+            int minutes = (int)Math.Round((duration - hours) * 60);
+            if (minutes == 0)
+                return $"{hours} hrs";  // Only hours
+            return $"{hours} hrs {minutes} min";  // Hours and minutes
+        }
+    }
+
+    public async Task<IActionResult> OnGetBoardDistributionAsync(string filter, string userEmail = null)
+    {
+        try
+        {
+            var selectedUserEmail = GetSelectedUserEmail(userEmail);
+            var data = await _entryService.GetBoardDistributionAsync(filter, selectedUserEmail);
+            return new JsonResult(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in OnGetBoardDistributionAsync: {ex.Message}");
+            return new JsonResult(new { success = false, error = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> OnGetLatestUpdateAsync()
+    {
+        try
+        {
+            var updateTime = await _entryService.GetLatestUpdateAsync();
+            return updateTime.HasValue
+                ? new JsonResult(new { success = true, timestamp = updateTime.Value })
+                : new JsonResult(new { success = false, message = "No update time found" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting latest update time: {ex.Message}");
+            return new JsonResult(new { success = false, message = "Error retrieving update time" });
+        }
+    }
+}
