@@ -15,6 +15,7 @@
 }
 
 <div class="container-fluid">
+    <input type="hidden" id="currentUserEmailInput" data-email="@(User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("preferred_username"))" />
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <div style="font-family: 'Poppins', sans-serif; font-weight: 300; color: #0d6efd; font-size: 1.1rem; margin-bottom: 5px;">Hawk Ridge Systems Engineering</div>
@@ -24,7 +25,14 @@
                     <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
-            <div style="font-size: 1.2rem; margin-top: 5px;">Hello <span id="userGreeting" style="font-weight: bold;"></span></div>
+            <div class="d-flex flex-column">
+                <div class="fs-4 fw-bold text-dark">
+                    Hello <span id="userGreeting">@Model.UserName</span>
+                </div>
+                <div id="totalHoursToday" style="font-size: 0.9rem; color: #198754; font-weight: 500;">
+                    Total Team Hours Today: Loading...
+                </div>
+            </div>
         </div>
         <div class="d-flex flex-column align-items-end">
             <div id="lastUpdateTime" style="font-size: 0.75rem; color: #6c757d; margin-bottom: 5px;"></div>
@@ -374,7 +382,7 @@
                 .then(result => {
                     if (result.success) {
                         const userSelect = document.getElementById('userSelect');
-                        const loggedInUserEmail = '@GetUserEmail(User)';  // Use the GetUserEmail helper function
+                        const loggedInUserEmail = document.getElementById('currentUserEmailInput').dataset.email;
                         
                         console.log('Authentication email:', loggedInUserEmail); // Debug log
                         console.log('All users from database:', result.data.map(u => ({ name: u.userName, email: u.email }))); // Debug log
@@ -498,14 +506,41 @@
                 .catch(error => console.error('Error loading update time:', error));
         }
 
-        // Update the document.addEventListener section to include loadLastUpdateTime
+        function formatTotalHours(hours) {
+            if (hours < 1) {
+                const minutes = Math.round(hours * 60);
+                return `${minutes} minutes`;
+            } else {
+                const wholeHours = Math.floor(hours);
+                const minutes = Math.round((hours - wholeHours) * 60);
+                if (minutes === 0) {
+                    return `${wholeHours} hour${wholeHours !== 1 ? 's' : ''}`;
+                }
+                return `${wholeHours} hour${wholeHours !== 1 ? 's' : ''} ${minutes} min`;
+            }
+        }
+
+        function loadTotalHoursToday() {
+            fetch('/Index?handler=TotalHoursToday')
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        const formattedHours = formatTotalHours(result.totalHours);
+                        document.getElementById('totalHoursToday').textContent = `Total Logged Today: ${formattedHours}`;
+                    }
+                })
+                .catch(error => console.error('Error loading total hours:', error));
+        }
+
+        // Update the document.addEventListener section to include loadTotalHoursToday
         document.addEventListener("DOMContentLoaded", () => {
             addRefreshButton();
             loadUsers();
             loadLastUpdateTime();
+            loadTotalHoursToday();
         });
 
-        // Update the refresh button click handler to also refresh the last update time
+        // Update the refresh button click handler to also refresh the last update time and total hours
         function addRefreshButton() {
             const refreshButton = document.getElementById('refreshButton');
             refreshButton.onclick = () => {
@@ -519,6 +554,7 @@
                 }
                 loadMonthlyComparison(true);
                 loadLastUpdateTime();
+                loadTotalHoursToday();
             };
         }
     </script>

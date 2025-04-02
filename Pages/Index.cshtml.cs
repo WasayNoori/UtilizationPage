@@ -20,6 +20,7 @@ public class IndexModel : PageModel
     private readonly ILogger<IndexModel> _logger;
     private readonly IConfiguration _configuration;
     public WeeklyHoursSummary WeeklyTotals { get; set; }
+    public string UserName { get; set; }
 
     public IndexModel(EntryService entryService, ILogger<IndexModel> logger, IConfiguration configuration)
     {
@@ -28,7 +29,20 @@ public class IndexModel : PageModel
         _configuration = configuration;
     }
 
-    public void OnGet() { }
+    public async Task OnGetAsync()
+    {
+        try
+        {
+            var userEmail = GetSelectedUserEmail();
+            var user = await _entryService.GetUserByEmailAsync(userEmail);
+            UserName = user?.UserName ?? "User";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting user info: {ex.Message}");
+            UserName = "User";
+        }
+    }
 
     private string GetDevelopmentUserEmail() => _configuration["TestUser:Email"] ?? "wasay@hawkridgesys.com";
 
@@ -171,6 +185,20 @@ public class IndexModel : PageModel
         {
             _logger.LogError($"Error getting latest update time: {ex.Message}");
             return new JsonResult(new { success = false, message = "Error retrieving update time" });
+        }
+    }
+
+    public async Task<IActionResult> OnGetTotalHoursTodayAsync()
+    {
+        try
+        {
+            var totalHours = await _entryService.GetTotalHoursTodayAsync();
+            return new JsonResult(new { success = true, totalHours });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting total hours for today: {ex.Message}");
+            return new JsonResult(new { success = false, message = "Error retrieving total hours" });
         }
     }
 }

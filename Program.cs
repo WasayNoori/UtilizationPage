@@ -39,9 +39,15 @@ builder.Services.AddScoped<EntryService>();
 builder.Logging.AddAzureWebAppDiagnostics();
 var app = builder.Build();
 
+// Configure error handling based on environment
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
+}
+else
+{
     app.UseExceptionHandler("/Error");
+    app.UseStatusCodePagesWithReExecute("/Error", "?statusCode={0}");
     app.UseHsts();
 }
 

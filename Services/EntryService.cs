@@ -607,5 +607,27 @@ namespace UtilizationPage_ASP.Services
             }
         }
 
+        public async Task<double> GetTotalHoursTodayAsync()
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("TodaysLoggedHours", connection))
+                    {
+                        command.CommandType = System.Data.CommandType.StoredProcedure;
+                        var result = await command.ExecuteScalarAsync();
+                        return result != DBNull.Value ? Convert.ToDouble(result) : 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting total hours for today: {ex.Message}");
+                return 0;
+            }
+        }
+
     }
 }
