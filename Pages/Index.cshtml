@@ -26,8 +26,8 @@
                 </button>
             </div>
             <div class="d-flex flex-column">
-                <div class="fs-4 fw-bold text-dark">
-                    Hello <span id="userGreeting">@Model.UserName</span>
+                <div class="fs-4 text-dark">
+                    Hello <span id="userGreeting" class="fw-bold">@Model.UserName</span>
                 </div>
                 <div id="totalHoursToday" style="font-size: 0.9rem; color: #198754; font-weight: 500;">
                     Total Team Hours Today: Loading...
@@ -526,7 +526,7 @@
                 .then(result => {
                     if (result.success) {
                         const formattedHours = formatTotalHours(result.totalHours);
-                        document.getElementById('totalHoursToday').textContent = `Total Logged Today: ${formattedHours}`;
+                        document.getElementById('totalHoursToday').textContent = `Total Logged Today by Team: ${formattedHours}`;
                     }
                 })
                 .catch(error => console.error('Error loading total hours:', error));
