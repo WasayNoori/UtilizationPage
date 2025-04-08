@@ -58,5 +58,15 @@
         public string UserType { get; set; }
     }
 }
+
+public class WeekendEntryViewModel
+{
+    public string Weekday { get; set; }
+    public DateTime Date { get; set; }
+    public string BoardName { get; set; }
+    public string GroupName { get; set; }
+    public string ItemName { get; set; }
+    public double Duration { get; set; }
+}
     
 

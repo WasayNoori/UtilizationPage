@@ -150,6 +150,8 @@
             ]
         });
 
+        var weekendTable = null; // Initialize weekend table variable
+
         // Cache object to store data
         const dataCache = {
             entries: {},
@@ -412,8 +414,8 @@
                                 }
                             });
                             
-                            // Set disabled state
-                            userSelect.disabled = currentUserType !== 'Manager';
+                            // Set disabled state based on user type (case-insensitive and trimmed)
+                            userSelect.disabled = currentUserType.trim().toLowerCase() !== 'manager';
                             
                             // Load initial data
                             const currentValue = document.getElementById('timeFilter').value;
@@ -449,6 +451,7 @@
             loadWeeklyTotals('THIS', 'weeklyTotalsThis', true);
             loadWeeklyTotals('LAST', 'weeklyTotalsLast', true);
             loadMonthlyComparison(true);
+            loadWeekendHours(true); // Refresh weekend hours when user changes
         }
 
         // Add this function to format the timestamp
@@ -532,15 +535,95 @@
                 .catch(error => console.error('Error loading total hours:', error));
         }
 
-        // Update the document.addEventListener section to include loadTotalHoursToday
+        function loadWeekendHours(forceRefresh = false) {
+            fetch(`/Index?handler=WeekendHours&userEmail=${encodeURIComponent(currentUserEmail)}`)
+                .then(response => response.json())
+                .then(result => {
+                    const noDataMessage = document.getElementById('noWeekendHoursMessage');
+                    const tableElement = document.getElementById('weekendHoursTabulatorTable');
+
+                    if (result.success && result.data.length > 0) {
+                        const weekendEntries = result.data;
+                        let totalDuration = 0;
+
+                        // Process entries: format date and calculate total duration
+                        const childrenData = weekendEntries.map(entry => {
+                            totalDuration += entry.duration;
+                            const date = new Date(entry.date);
+                            const formattedDate = `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear()}`;
+                            return {
+                                ...entry, // Copy existing properties
+                                weekdayDate: `${entry.weekday} - ${formattedDate}`,
+                                durationFormatted: formatTotalHours(entry.duration)
+                            };
+                        });
+
+                        // Create parent row data
+                        const parentData = [{
+                            weekdayDate: `Total Weekend Hours`, // Or any title you prefer
+                            durationFormatted: formatTotalHours(totalDuration),
+                            _children: childrenData
+                        }];
+
+                        // Show table, hide message
+                        noDataMessage.style.display = 'none';
+                        tableElement.style.display = 'block';
+
+                        // Initialize or update Tabulator
+                        if (!weekendTable) {
+                            weekendTable = new Tabulator("#weekendHoursTabulatorTable", {
+                                data: parentData,
+                                layout: "fitColumns",
+                                dataTree: true,
+                                dataTreeStartExpanded: false, // Start collapsed
+                                dataTreeChildField: "_children",
+                                columns: [
+                                    { title: "Day - Date", field: "weekdayDate", headerSort: false },
+                                    { title: "Board Name", field: "boardName", headerSort: false },
+                                    { title: "Group Name", field: "groupName", headerSort: false },
+                                    { title: "Item Name", field: "itemName", headerSort: false },
+                                    { title: "Duration", field: "durationFormatted", hozAlign: "left", headerSort: false }
+                                ],
+                                // Adjust height dynamically or set a fixed height
+                                height: "auto" // Allows dynamic height based on rows
+                            });
+                        } else {
+                            weekendTable.setData(parentData);
+                        }
+
+                    } else {
+                        // Show message, hide/clear table
+                        noDataMessage.style.display = 'block';
+                        tableElement.style.display = 'none';
+                        if (weekendTable) {
+                            weekendTable.clearData(); // Clear data if table exists
+                        }
+                        if (!result.success) {
+                            console.error('Error loading weekend hours:', result.error);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching weekend hours:', error);
+                    document.getElementById('noWeekendHoursMessage').textContent = 'Error loading weekend data.';
+                    document.getElementById('noWeekendHoursMessage').style.display = 'block';
+                    document.getElementById('weekendHoursTabulatorTable').style.display = 'none';
+                    if (weekendTable) {
+                        weekendTable.clearData();
+                    }
+                });
+        }
+
+        // Update the document.addEventListener section to include loadWeekendHours
         document.addEventListener("DOMContentLoaded", () => {
             addRefreshButton();
             loadUsers();
             loadLastUpdateTime();
             loadTotalHoursToday();
+            loadWeekendHours(); // Load weekend hours on initial load
         });
 
-        // Update the refresh button click handler to also refresh the last update time and total hours
+        // Update the refresh button click handler to also refresh weekend hours
         function addRefreshButton() {
             const refreshButton = document.getElementById('refreshButton');
             refreshButton.onclick = () => {
@@ -555,6 +638,7 @@
                 loadMonthlyComparison(true);
                 loadLastUpdateTime();
                 loadTotalHoursToday();
+                loadWeekendHours(true); // Refresh weekend hours
             };
         }
     </script>
@@ -618,4 +702,13 @@
             <tbody id="monthlyComparison"></tbody>
         </table>
     </div>
+
+    <div style="margin-top: 30px; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+        <h5 style="color: #0d6efd; margin-bottom: 15px;">Weekend Hours Logged</h5>
+        <div id="weekendHoursTabulatorTable"></div>
+        <div id="noWeekendHoursMessage" style="display: none; text-align: center; padding: 20px; color: #6c757d;">
+            No weekend hours logged.
+        </div>
+    </div>
+
 </div>

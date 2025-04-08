@@ -28,7 +28,7 @@ namespace UtilizationPage_ASP.Pages.Account
                 return Redirect("/");
             }
 
-            var testUserEmail = _configuration["TestUser:Email"] ?? "adamb@hawkridgesys.com";
+            var testUserEmail = _configuration["TestUser:Email"] ;
             
             var claims = new List<Claim>
             {

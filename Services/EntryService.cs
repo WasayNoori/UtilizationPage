@@ -629,5 +629,61 @@ namespace UtilizationPage_ASP.Services
             }
         }
 
+        public async Task<List<WeekendEntryViewModel>> GetWeekendHoursAsync(string userEmail)
+        {
+            var weekendEntries = new List<WeekendEntryViewModel>();
+            _logger.LogInformation($"GetWeekendHoursAsync called for user: {userEmail}");
+
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                _logger.LogWarning("GetWeekendHoursAsync called with null or empty userEmail.");
+                return weekendEntries; // Return empty list if no email provided
+            }
+
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("GetWeekendHoursByUser", connection))
+                    {
+                        command.CommandType = System.Data.CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@UserEmail", userEmail);
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                try
+                                {
+                                    var entry = new WeekendEntryViewModel
+                                    {
+                                        Weekday = reader.GetString(reader.GetOrdinal("Weekday")),
+                                        Date = reader.GetDateTime(reader.GetOrdinal("Date")),
+                                        BoardName = reader.GetString(reader.GetOrdinal("BoardName")),
+                                        GroupName = reader.GetString(reader.GetOrdinal("GroupName")),
+                                        ItemName = reader.GetString(reader.GetOrdinal("ItemName")),
+                                        Duration = reader.GetDouble(reader.GetOrdinal("Duration"))
+                                    };
+                                    weekendEntries.Add(entry);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError($"Error reading weekend entry row: {ex.Message}");
+                                    // Optionally log column values if needed for debugging
+                                }
+                            }
+                        }
+                    }
+                }
+                _logger.LogInformation($"Retrieved {weekendEntries.Count} weekend entries for {userEmail}.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error fetching weekend hours for {userEmail}: {ex.Message}");
+            }
+            return weekendEntries;
+        }
+
     }
 }

@@ -201,4 +201,19 @@ public class IndexModel : PageModel
             return new JsonResult(new { success = false, message = "Error retrieving total hours" });
         }
     }
+
+    public async Task<IActionResult> OnGetWeekendHoursAsync(string userEmail = null)
+    {
+        try
+        {
+            var selectedUserEmail = GetSelectedUserEmail(userEmail);
+            var weekendHours = await _entryService.GetWeekendHoursAsync(selectedUserEmail);
+            return new JsonResult(new { success = true, data = weekendHours });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting weekend hours: {ex.Message}");
+            return new JsonResult(new { success = false, error = "Error retrieving weekend hours" });
+        }
+    }
 }
