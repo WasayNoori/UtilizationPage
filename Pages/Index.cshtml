@@ -84,7 +84,7 @@
             <button class="nav-link active" id="utilization-tab" data-bs-toggle="tab" data-bs-target="#utilization" type="button" role="tab" aria-controls="utilization" aria-selected="true">Utilization Data</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="visualizations-tab" data-bs-toggle="tab" data-bs-target="#visualizations" type="button" role="tab" aria-controls="visualizations" aria-selected="false">Visualizations</button>
+            <button class="nav-link" id="visualizations-tab" data-bs-toggle="tab" data-bs-target="#visualizations" type="button" role="tab" aria-controls="visualizations" aria-selected="false">Trends</button>
         </li>
     </ul>
     <div class="tab-content" id="myTabContent">
@@ -805,7 +805,7 @@
                                                 const datasets = chart.data.datasets;
                                                 return datasets.map((dataset, i) => ({
                                                     text: dataset.label === 'Weekly Ideal' ? 'Weekly Target (28h)' :
-                                                          dataset.label === 'User Hours' ? 'My Hours' :
+                                                          dataset.label === 'User Hours' ? 'User Hours' :
                                                           'Team Average',
                                                     fillStyle: dataset.backgroundColor,
                                                     strokeStyle: dataset.borderColor,
