@@ -216,4 +216,19 @@ public class IndexModel : PageModel
             return new JsonResult(new { success = false, error = "Error retrieving weekend hours" });
         }
     }
+
+    public async Task<IActionResult> OnGetWeeklyVisualizationDataAsync(string userEmail = null)
+    {
+        try
+        {
+            var selectedUserEmail = GetSelectedUserEmail(userEmail);
+            var visualizationData = await _entryService.GetWeeklyVisualizationDataAsync(selectedUserEmail);
+            return new JsonResult(new { success = true, data = visualizationData });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting weekly visualization data: {ex.Message}");
+            return new JsonResult(new { success = false, error = "Error retrieving visualization data" });
+        }
+    }
 }

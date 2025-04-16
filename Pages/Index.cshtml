@@ -58,7 +58,6 @@
                                 var currentMonth = DateTime.Now.Month;
                                 var currentYear = DateTime.Now.Year;
                                 
-                                // Generate all months for current year in chronological order
                                 for (int month = 1; month <= 12; month++) {
                                     var date = new DateTime(currentYear, month, 1);
                                     var monthName = date.ToString("MMMM");
@@ -79,15 +78,109 @@
         </div>
     </div>
 
-    <div style="position: relative;">
-        <div id="loadingOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 1000; text-align: center; padding-top: 200px;">
-            Loading data...
+    <!-- Add Tab Structure -->
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="utilization-tab" data-bs-toggle="tab" data-bs-target="#utilization" type="button" role="tab" aria-controls="utilization" aria-selected="true">Utilization Data</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="visualizations-tab" data-bs-toggle="tab" data-bs-target="#visualizations" type="button" role="tab" aria-controls="visualizations" aria-selected="false">Visualizations</button>
+        </li>
+    </ul>
+    <div class="tab-content" id="myTabContent">
+        <div class="tab-pane fade show active" id="utilization" role="tabpanel" aria-labelledby="utilization-tab">
+            <div style="position: relative;">
+                <div id="loadingOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 1000; text-align: center; padding-top: 200px;">
+                    Loading data...
+                </div>
+                <div id="timeTrackingTable"></div>
+            </div>
+
+            <div style="display:flex; gap:20px; margin-top:20px;">
+                <table class="table" style="width:45%;">
+                    <thead>
+                        <tr><th colspan="6">This Week's Hours</th></tr>
+                        <tr>
+                            <th></th>
+                            <th>Mon</th>
+                            <th>Tue</th>
+                            <th>Wed</th>
+                            <th>Thu</th>
+                            <th>Fri</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weeklyTotalsThis"></tbody>
+                </table>
+
+                <table class="table" style="width:45%;">
+                    <thead>
+                        <tr><th colspan="6">Last Week's Hours</th></tr>
+                        <tr>
+                            <th></th>
+                            <th>Mon</th>
+                            <th>Tue</th>
+                            <th>Wed</th>
+                            <th>Thu</th>
+                            <th>Fri</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weeklyTotalsLast"></tbody>
+                </table>
+            </div>
+
+            <div style="margin: 30px 0; text-align: center;">
+                <div style="display: inline-block; width: 100%; height: 2px; background: linear-gradient(to right, transparent, #20c997, transparent);"></div>
+            </div>
+
+            <div style="margin-top: 20px; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                <table class="table" style="width: 100%;">
+                    <thead>
+                        <tr><th colspan="13">Monthly User Hours vs Team Average</th></tr>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Jan</th>
+                            <th>Feb</th>
+                            <th>Mar</th>
+                            <th>Apr</th>
+                            <th>May</th>
+                            <th>Jun</th>
+                            <th>Jul</th>
+                            <th>Aug</th>
+                            <th>Sep</th>
+                            <th>Oct</th>
+                            <th>Nov</th>
+                            <th>Dec</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthlyComparison"></tbody>
+                </table>
+            </div>
+
+            <div style="margin-top: 30px; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                <h5 style="color: #0d6efd; margin-bottom: 15px;">Weekend Hours Logged</h5>
+                <div id="weekendHoursTabulatorTable"></div>
+                <div id="noWeekendHoursMessage" style="display: none; text-align: center; padding: 20px; color: #6c757d;">
+                    No weekend hours logged.
+                </div>
+            </div>
         </div>
-        <div id="timeTrackingTable"></div>
+        <div class="tab-pane fade" id="visualizations" role="tabpanel" aria-labelledby="visualizations-tab">
+            <div id="visualizationsContent" style="padding: 20px;">
+                <div class="card">
+                    <div class="card-body">
+                        <div style="height: 500px; position: relative;">
+                            <canvas id="weeklyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.0.7/js/tabulator.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.0.7/css/tabulator.min.css">
+    <!-- Add Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
         var table = new Tabulator("#timeTrackingTable", {
@@ -451,7 +544,8 @@
             loadWeeklyTotals('THIS', 'weeklyTotalsThis', true);
             loadWeeklyTotals('LAST', 'weeklyTotalsLast', true);
             loadMonthlyComparison(true);
-            loadWeekendHours(true); // Refresh weekend hours when user changes
+            loadWeekendHours(true);
+            loadWeeklyData();
         }
 
         // Add this function to format the timestamp
@@ -614,13 +708,167 @@
                 });
         }
 
-        // Update the document.addEventListener section to include loadWeekendHours
+        function loadWeeklyData() {
+            console.log('Loading weekly data for user:', currentUserEmail);
+            fetch(`/Index?handler=WeeklyVisualizationData&userEmail=${encodeURIComponent(currentUserEmail)}`)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        const data = result.data;
+                        console.log('Received visualization data:', data);
+                        
+                        // Extract week numbers and data points
+                        const weekNumbers = data.map(item => `Week ${item.weekNumber}`);
+                        const userHours = data.map(item => item.userHours);
+                        const teamHours = data.map(item => item.avgTeamHours);
+                        const idealHours = data.map(item => item.weeklyIdeal);
+
+                        console.log('Processed data:', {
+                            weeks: weekNumbers,
+                            user: userHours,
+                            team: teamHours,
+                            ideal: idealHours
+                        });
+                        
+                        // Get the canvas element
+                        const ctx = document.getElementById('weeklyChart');
+                        if (!ctx) {
+                            console.error('Could not find weeklyChart canvas element');
+                            return;
+                        }
+                        
+                        // Destroy existing chart if it exists
+                        if (window.weeklyChart instanceof Chart) {
+                            console.log('Destroying existing chart');
+                            window.weeklyChart.destroy();
+                        }
+                        
+                        console.log('Creating new chart');
+                        // Create the new chart
+                        window.weeklyChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: weekNumbers,
+                                datasets: [
+                                    {
+                                        label: 'User Hours',
+                                        data: userHours,
+                                        borderColor: 'rgb(75, 192, 192)',
+                                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                        tension: 0,
+                                        fill: false
+                                    
+                                    },
+                                    {
+                                        label: 'Team Average Hours',
+                                        data: teamHours,
+                                        borderColor: 'rgb(255, 99, 132)',
+                                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                        tension: 0,
+                                        fill: false
+                                    },
+                                    {
+                                        label: 'Weekly Ideal',
+                                        data: idealHours,
+                                        borderColor: 'rgb(54, 162, 235)',
+                                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                        tension: 0,
+                                        fill: false,
+                                        borderDash: [5, 5]
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Weekly Hours Comparison',
+                                        font: {
+                                            size: 20,
+                                            weight: 'bold'
+                                        },
+                                        padding: {
+                                            bottom: 20
+                                        }
+                                    },
+                                    legend: {
+                                        position: 'top',
+                                        labels: {
+                                            padding: 20,
+                                            font: {
+                                                size: 14
+                                            },
+                                            usePointStyle: true,
+                                            generateLabels: function(chart) {
+                                                const datasets = chart.data.datasets;
+                                                return datasets.map((dataset, i) => ({
+                                                    text: dataset.label === 'Weekly Ideal' ? 'Weekly Target (28h)' :
+                                                          dataset.label === 'User Hours' ? 'My Hours' :
+                                                          'Team Average',
+                                                    fillStyle: dataset.backgroundColor,
+                                                    strokeStyle: dataset.borderColor,
+                                                    lineWidth: 2,
+                                                    hidden: !chart.isDatasetVisible(i),
+                                                    lineDash: dataset.borderDash,
+                                                    index: i
+                                                }));
+                                            },
+                                            onClick: function(e, legendItem, legend) {
+                                                const index = legendItem.index;
+                                                const chart = legend.chart;
+                                                chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
+                                                chart.update();
+                                            }
+                                        },
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Week Number'
+                                        },
+                                        grid: {
+                                            display: false
+                                        }
+                                    },
+                                    y: {
+                                        title: {
+                                            display: true,
+                                            text: 'Hours'
+                                        },
+                                        beginAtZero: true
+                                    }
+                                }
+                            }
+                        });
+                        console.log('Chart created successfully');
+                    } else {
+                        console.error('Error loading visualization data:', result.error);
+                    }
+                })
+                .catch(error => console.error('Error fetching visualization data:', error));
+        }
+
+        // Make sure the chart is loaded when switching to the visualizations tab
+        document.addEventListener('DOMContentLoaded', () => {
+            const visualizationsTab = document.getElementById('visualizations-tab');
+            visualizationsTab.addEventListener('shown.bs.tab', () => {
+                console.log('Visualization tab shown, loading data...');
+                loadWeeklyData();
+            });
+        });
+
+        // Update the DOMContentLoaded event listener to include loadWeeklyData
         document.addEventListener("DOMContentLoaded", () => {
             addRefreshButton();
             loadUsers();
             loadLastUpdateTime();
             loadTotalHoursToday();
-            loadWeekendHours(); // Load weekend hours on initial load
+            loadWeekendHours();
+            loadWeeklyData(); // Add this line
         });
 
         // Update the refresh button click handler to also refresh weekend hours
@@ -638,77 +886,9 @@
                 loadMonthlyComparison(true);
                 loadLastUpdateTime();
                 loadTotalHoursToday();
-                loadWeekendHours(true); // Refresh weekend hours
+                loadWeekendHours(true);
+                loadWeeklyData(); // Add this line to refresh the visualization
             };
         }
     </script>
-
-    <div style="display:flex; gap:20px; margin-top:20px;">
-        <table class="table" style="width:45%;">
-            <thead>
-                <tr><th colspan="6">This Week's Hours</th></tr>
-                <tr>
-                    <th></th>
-                    <th>Mon</th>
-                    <th>Tue</th>
-                    <th>Wed</th>
-                    <th>Thu</th>
-                    <th>Fri</th>
-                </tr>
-            </thead>
-            <tbody id="weeklyTotalsThis"></tbody>
-        </table>
-
-        <table class="table" style="width:45%;">
-            <thead>
-                <tr><th colspan="6">Last Week's Hours</th></tr>
-                <tr>
-                    <th></th>
-                    <th>Mon</th>
-                    <th>Tue</th>
-                    <th>Wed</th>
-                    <th>Thu</th>
-                    <th>Fri</th>
-                </tr>
-            </thead>
-            <tbody id="weeklyTotalsLast"></tbody>
-        </table>
-    </div>
-
-    <div style="margin: 30px 0; text-align: center;">
-        <div style="display: inline-block; width: 100%; height: 2px; background: linear-gradient(to right, transparent, #20c997, transparent);"></div>
-    </div>
-
-    <div style="margin-top: 20px; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
-        <table class="table" style="width: 100%;">
-            <thead>
-                <tr><th colspan="13">Monthly User Hours vs Team Average</th></tr>
-                <tr>
-                    <th>Metric</th>
-                    <th>Jan</th>
-                    <th>Feb</th>
-                    <th>Mar</th>
-                    <th>Apr</th>
-                    <th>May</th>
-                    <th>Jun</th>
-                    <th>Jul</th>
-                    <th>Aug</th>
-                    <th>Sep</th>
-                    <th>Oct</th>
-                    <th>Nov</th>
-                    <th>Dec</th>
-                </tr>
-            </thead>
-            <tbody id="monthlyComparison"></tbody>
-        </table>
-    </div>
-
-    <div style="margin-top: 30px; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
-        <h5 style="color: #0d6efd; margin-bottom: 15px;">Weekend Hours Logged</h5>
-        <div id="weekendHoursTabulatorTable"></div>
-        <div id="noWeekendHoursMessage" style="display: none; text-align: center; padding: 20px; color: #6c757d;">
-            No weekend hours logged.
-        </div>
-    </div>
-
 </div>

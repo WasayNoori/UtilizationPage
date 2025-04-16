@@ -61,12 +61,19 @@
 
 public class WeekendEntryViewModel
 {
-    public string Weekday { get; set; }
     public DateTime Date { get; set; }
     public string BoardName { get; set; }
     public string GroupName { get; set; }
     public string ItemName { get; set; }
     public double Duration { get; set; }
+}
+
+public class WeeklyDataViewModel
+{
+    public int WeekNumber { get; set; }
+    public double UserHours { get; set; }
+    public double AvgTeamHours { get; set; }
+    public double WeeklyIdeal { get; set; }
 }
     
 

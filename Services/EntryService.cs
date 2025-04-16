@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
+using System.Data;
 
 namespace UtilizationPage_ASP.Services
 {
@@ -358,7 +359,7 @@ namespace UtilizationPage_ASP.Services
                     // Get all users with their team information
                     using (var command = new SqlCommand(@"
                         SELECT UserName, Email, UserType, Team 
-                        FROM Users 
+                        FROM Users Where status='Active'
                         ORDER BY UserName", connection))
                     {
                         using (var reader = await command.ExecuteReaderAsync())
@@ -631,13 +632,59 @@ namespace UtilizationPage_ASP.Services
 
         public async Task<List<WeekendEntryViewModel>> GetWeekendHoursAsync(string userEmail)
         {
+            _logger.LogInformation($"Getting weekend hours for user: {userEmail}");
             var weekendEntries = new List<WeekendEntryViewModel>();
-            _logger.LogInformation($"GetWeekendHoursAsync called for user: {userEmail}");
 
             if (string.IsNullOrEmpty(userEmail))
             {
-                _logger.LogWarning("GetWeekendHoursAsync called with null or empty userEmail.");
-                return weekendEntries; // Return empty list if no email provided
+                return weekendEntries;
+            }
+
+            try
+            {
+                using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("GetWeekendHoursByUser", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@UserEmail", userEmail);
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                var entry = new WeekendEntryViewModel
+                                {
+                                    Date = reader.GetDateTime(reader.GetOrdinal("Date")),
+                                    BoardName = reader.GetString(reader.GetOrdinal("BoardName")),
+                                    GroupName = reader.GetString(reader.GetOrdinal("GroupName")),
+                                    ItemName = reader.GetString(reader.GetOrdinal("ItemName")),
+                                    Duration = reader.GetDouble(reader.GetOrdinal("Duration"))
+                                };
+                                weekendEntries.Add(entry);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting weekend hours: {ex.Message}");
+                throw;
+            }
+
+            return weekendEntries;
+        }
+
+        public async Task<List<WeeklyDataViewModel>> GetWeeklyVisualizationDataAsync(string userEmail)
+        {
+            _logger.LogInformation($"Getting weekly visualization data for user: {userEmail}");
+            var weeklyData = new List<WeeklyDataViewModel>();
+
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                return weeklyData;
             }
 
             try
@@ -645,44 +692,86 @@ namespace UtilizationPage_ASP.Services
                 using (var connection = new SqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    using (var command = new SqlCommand("GetWeekendHoursByUser", connection))
+                    using (var command = new SqlCommand("GetWeeklyHoursForGraph", connection))
                     {
-                        command.CommandType = System.Data.CommandType.StoredProcedure;
-                        command.Parameters.AddWithValue("@UserEmail", userEmail);
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@Email", userEmail);
 
                         using (var reader = await command.ExecuteReaderAsync())
                         {
-                            while (await reader.ReadAsync())
+                            _logger.LogInformation($"Result set structure: FieldCount={reader.FieldCount}");
+                            for (int i = 0; i < reader.FieldCount; i++)
                             {
-                                try
+                                _logger.LogInformation($"Column {i}: Name={reader.GetName(i)}, Type={reader.GetFieldType(i).Name}");
+                            }
+
+                            if (await reader.ReadAsync())
+                            {
+                                // Log the first row's content for debugging
+                                for (int i = 0; i < reader.FieldCount; i++)
                                 {
-                                    var entry = new WeekendEntryViewModel
+                                    _logger.LogInformation($"First row, Column {i} ({reader.GetName(i)}) = {reader.GetValue(i)}");
+                                }
+
+                                // If it's an error message
+                                if (reader.FieldCount == 1 && reader.GetName(0) == "Message")
+                                {
+                                    string errorMessage = reader.GetString(0);
+                                    _logger.LogError($"SQL Server returned error: {errorMessage}");
+                                    throw new Exception($"SQL Server error: {errorMessage}");
+                                }
+
+                                // If it's actual data, start processing from the first row
+                                do
+                                {
+                                    var data = new WeeklyDataViewModel();
+                                    
+                                    for (int i = 0; i < reader.FieldCount; i++)
                                     {
-                                        Weekday = reader.GetString(reader.GetOrdinal("Weekday")),
-                                        Date = reader.GetDateTime(reader.GetOrdinal("Date")),
-                                        BoardName = reader.GetString(reader.GetOrdinal("BoardName")),
-                                        GroupName = reader.GetString(reader.GetOrdinal("GroupName")),
-                                        ItemName = reader.GetString(reader.GetOrdinal("ItemName")),
-                                        Duration = reader.GetDouble(reader.GetOrdinal("Duration"))
-                                    };
-                                    weekendEntries.Add(entry);
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger.LogError($"Error reading weekend entry row: {ex.Message}");
-                                    // Optionally log column values if needed for debugging
-                                }
+                                        string columnName = reader.GetName(i);
+                                        switch (columnName.ToLower())
+                                        {
+                                            case "weeknumber":
+                                                data.WeekNumber = reader.GetInt32(i);
+                                                break;
+                                            case "userhours":
+                                                data.UserHours = reader.GetDouble(i);
+                                                break;
+                                            case "avgteamhours":
+                                                data.AvgTeamHours = reader.GetDouble(i);
+                                                break;
+                                            case "weeklyideal":
+                                                // Handle both integer and double values
+                                                if (reader.GetFieldType(i) == typeof(int))
+                                                {
+                                                    data.WeeklyIdeal = Convert.ToDouble(reader.GetInt32(i));
+                                                }
+                                                else
+                                                {
+                                                    data.WeeklyIdeal = reader.GetDouble(i);
+                                                }
+                                                break;
+                                        }
+                                    }
+                                    
+                                    weeklyData.Add(data);
+                                } while (await reader.ReadAsync());
+                            }
+                            else
+                            {
+                                _logger.LogWarning("No rows returned from stored procedure");
                             }
                         }
                     }
                 }
-                _logger.LogInformation($"Retrieved {weekendEntries.Count} weekend entries for {userEmail}.");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error fetching weekend hours for {userEmail}: {ex.Message}");
+                _logger.LogError($"Error getting weekly visualization data: {ex.Message}");
+                throw;
             }
-            return weekendEntries;
+
+            return weeklyData;
         }
 
     }
