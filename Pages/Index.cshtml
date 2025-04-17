@@ -279,11 +279,25 @@
                     if (data && Array.isArray(data)) {
                         console.log('%c Step 5A: Direct array response received', 'color: #00aa00; font-weight: bold;');
                         users = data;
+                        // Set currentUserType for the logged-in user
+                        const currentUserEmail = $('#currentUserEmailInput').data('email');
+                        const currentUser = users.find(u => u.email === currentUserEmail);
+                        if (currentUser) {
+                            currentUserType = currentUser.userType;
+                            console.log('Current user type:', currentUserType);
+                        }
                         console.table(users);
                         populateUserDropdown();
                     } else if (data && data.data && Array.isArray(data.data)) {
                         console.log('%c Step 5B: Nested array response received', 'color: #00aa00; font-weight: bold;');
                         users = data.data;
+                        // Set currentUserType for the logged-in user
+                        const currentUserEmail = $('#currentUserEmailInput').data('email');
+                        const currentUser = users.find(u => u.email === currentUserEmail);
+                        if (currentUser) {
+                            currentUserType = currentUser.userType;
+                            console.log('Current user type:', currentUserType);
+                        }
                         console.table(users);
                         populateUserDropdown();
                     } else {
@@ -365,6 +379,11 @@
                 if (select.val() !== currentUserEmail) {
                     console.warn('Could not set current user in dropdown');
                 }
+            }
+
+            // Lock the dropdown if user is not a Manager
+            if (currentUserType !== 'Manager') {
+                select.prop('disabled', true);
             }
 
             console.groupEnd();
