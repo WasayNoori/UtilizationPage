@@ -75,5 +75,16 @@ public class WeeklyDataViewModel
     public double AvgTeamHours { get; set; }
     public double WeeklyIdeal { get; set; }
 }
-    
+
+public class MVPModel
+{
+    public string UserName { get; set; }
+    public double TotalHours { get; set; }
+}
+
+public class MVPOverallViewModel
+{
+    public string UserName { get; set; }
+    public double TotalHours { get; set; }
+}
 

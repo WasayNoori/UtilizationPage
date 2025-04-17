@@ -86,6 +86,9 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="visualizations-tab" data-bs-toggle="tab" data-bs-target="#visualizations" type="button" role="tab" aria-controls="visualizations" aria-selected="false">Trends</button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="mvp-tab" data-bs-toggle="tab" data-bs-target="#mvp" type="button" role="tab" aria-controls="mvp" aria-selected="false">MVP 🏆</button>
+        </li>
     </ul>
     <div class="tab-content" id="myTabContent">
         <div class="tab-pane fade show active" id="utilization" role="tabpanel" aria-labelledby="utilization-tab">
@@ -170,6 +173,56 @@
                     <div class="card-body">
                         <div style="height: 500px; position: relative;">
                             <canvas id="weeklyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="mvp" role="tabpanel" aria-labelledby="mvp-tab">
+            <div class="container mt-4">
+                <div class="row justify-content-center">
+                    <div class="col-md-5">
+                        <div class="card mvp-card">
+                            <div class="card-header text-center" style="background: linear-gradient(45deg, #FFD700, #FFA500); color: #2C3E50; font-size: 22px; font-weight: bold; text-transform: uppercase; padding: 20px;">
+                                <i class="fas fa-trophy" style="color: #2C3E50; margin-right: 10px;"></i>
+                                Most Utilized Overall
+                            </div>
+                            <div class="card-body" style="background: #FFFFFF;">
+                                <table class="table" id="mvpTable">
+                                    <thead>
+                                        <tr style="background: #2C3E50; color: white;">
+                                            <th scope="col" class="text-center" style="font-size: 18px;">Rank</th>
+                                            <th scope="col" style="font-size: 18px;">User Name</th>
+                                            <th scope="col" class="text-center" style="font-size: 18px;">Total Hours</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mvpTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="card mvp-card">
+                            <div class="card-header text-center" style="background: linear-gradient(45deg, #FFD700, #FFA500); color: #2C3E50; font-size: 22px; font-weight: bold; text-transform: uppercase; padding: 20px;">
+                                <i class="fas fa-trophy" style="color: #2C3E50; margin-right: 10px;"></i>
+                                Most Utilized in <span id="currentMonthName"></span>
+                            </div>
+                            <div class="card-body" style="background: #FFFFFF;">
+                                <table class="table" id="mvpLastMonthTable">
+                                    <thead>
+                                        <tr style="background: #2C3E50; color: white;">
+                                            <th scope="col" class="text-center" style="font-size: 18px;">Rank</th>
+                                            <th scope="col" style="font-size: 18px;">User Name</th>
+                                            <th scope="col" class="text-center" style="font-size: 18px;">Total Hours</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mvpLastMonthTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -890,5 +943,76 @@
                 loadWeeklyData(); // Add this line to refresh the visualization
             };
         }
+
+        async function loadMVPData() {
+            try {
+                // Set last month name
+                const monthNames = ["January", "February", "March", "April", "May", "June",
+                                  "July", "August", "September", "October", "November", "December"];
+                const lastMonth = new Date();
+                lastMonth.setMonth(lastMonth.getMonth() - 1);
+                const lastMonthName = monthNames[lastMonth.getMonth()];
+                document.getElementById('currentMonthName').textContent = lastMonthName;
+
+                // Load overall MVP data
+                const overallResponse = await fetch('/Index?handler=MVPOverall');
+                const overallData = await overallResponse.json();
+                
+                const overallTbody = document.getElementById('mvpTableBody');
+                overallTbody.innerHTML = '';
+                
+                overallData.forEach((mvp, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="text-center" style="font-size: 20px;">
+                            ${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                        </td>
+                        <td style="font-size: 16px;">${mvp.userName}</td>
+                        <td class="text-center" style="font-size: 16px;">${mvp.totalHours.toFixed(2)}</td>
+                    `;
+                    overallTbody.appendChild(row);
+                });
+
+                // Load last month MVP data
+                const lastMonthResponse = await fetch('/Index?handler=MVPLastMonth');
+                const lastMonthData = await lastMonthResponse.json();
+                
+                const lastMonthTbody = document.getElementById('mvpLastMonthTableBody');
+                lastMonthTbody.innerHTML = '';
+                
+                lastMonthData.forEach((mvp, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="text-center" style="font-size: 20px;">
+                            ${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                        </td>
+                        <td style="font-size: 16px;">${mvp.userName}</td>
+                        <td class="text-center" style="font-size: 16px;">${mvp.totalHours.toFixed(2)}</td>
+                    `;
+                    lastMonthTbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading MVP data:', error);
+            }
+        }
+
+        // Add this to your existing tab event listeners
+        document.getElementById('mvp-tab').addEventListener('shown.bs.tab', function (e) {
+            loadMVPData();
+        });
     </script>
 </div>
+
+<style>
+    .mvp-card {
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        border: none;
+        transition: transform 0.3s ease;
+    }
+
+    .mvp-card:hover {
+        transform: translateY(-5px);
+    }
+</style>

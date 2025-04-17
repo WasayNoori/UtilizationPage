@@ -231,4 +231,32 @@ public class IndexModel : PageModel
             return new JsonResult(new { success = false, error = "Error retrieving visualization data" });
         }
     }
+
+    public async Task<IActionResult> OnGetMVPOverall()
+    {
+        try
+        {
+            var mvpData = await _entryService.GetMVPOverall();
+            return new JsonResult(mvpData);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error fetching MVP data: {ex.Message}");
+            return new JsonResult(new { error = "Failed to fetch MVP data" }) { StatusCode = 500 };
+        }
+    }
+
+    public async Task<IActionResult> OnGetMVPLastMonth()
+    {
+        try
+        {
+            var mvpData = await _entryService.GetMVPLastMonth();
+            return new JsonResult(mvpData);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error fetching last month MVP data: {ex.Message}");
+            return new JsonResult(new { error = "Failed to fetch last month MVP data" }) { StatusCode = 500 };
+        }
+    }
 }

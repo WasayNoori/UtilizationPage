@@ -26,21 +26,30 @@ namespace UtilizationPage_ASP.Services
             _configuration = configuration;
             _logger = logger;
 
-            var password = configuration["Readerpass"];
+            var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
 
-            if (string.IsNullOrEmpty(password))
+            if (isDevelopment)
             {
-                _logger.LogError("Database password not found in environment variables.");
+                // Development environment - use hardcoded credentials
+                _connectionString = "Server=tcp:hawkridge.database.windows.net,1433;Initial Catalog=MondayUtilization;Persist Security Info=False;User ID=MondayReader;Password=HawkRidge#1!!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30";
+                _logger.LogInformation("Using development connection string");
             }
             else
             {
-                _logger.LogInformation($"Database password retrieved successfully. Length: {password.Length}");
+                // Production environment - get credentials from Azure configuration
+                var username = configuration["DbUser"];
+                var password = configuration["Readerpass"];
+
+                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+                {
+                    _logger.LogError("Database credentials not found in Azure configuration.");
+                    throw new InvalidOperationException("Database credentials not configured.");
+                }
+
+                var baseConnectionString = _configuration.GetConnectionString("DefaultConnection");
+                _connectionString = baseConnectionString + $";User ID={username};Password={password}";
+                _logger.LogInformation("Production database connection string configured successfully.");
             }
-
-
-
-            _connectionString = $"Server=tcp:hawkridge.database.windows.net,1433;Initial Catalog=MondayUtilization;Persist Security Info=False;User ID=MondayReader;Password={password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30";
-
         }
 
         private string FormatHours(double hours)
@@ -642,7 +651,7 @@ namespace UtilizationPage_ASP.Services
 
             try
             {
-                using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
+                using (var connection = new SqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
                     using (var command = new SqlCommand("GetWeekendHoursByUser", connection))
@@ -773,6 +782,85 @@ namespace UtilizationPage_ASP.Services
 
             return weeklyData;
         }
+
+        public async Task<List<MVPModel>> GetMVPOverall()
+        {
+            var mvpList = new List<MVPModel>();
+            _logger.LogInformation("Getting MVP overall data");
+
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("GetTop3MostUtilized", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                var mvp = new MVPModel
+                                {
+                                    UserName = reader.GetString(reader.GetOrdinal("User Name")),
+                                    TotalHours = reader.GetDouble(reader.GetOrdinal("Total hours"))
+                                };
+                                mvpList.Add(mvp);
+                                _logger.LogInformation($"MVP data loaded: {mvp.UserName} - {mvp.TotalHours} hours");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting MVP overall data: {ex.Message}");
+                throw;
+            }
+
+            return mvpList;
+        }
+
+        public async Task<List<MVPModel>> GetMVPLastMonth()
+        {
+            var mvpList = new List<MVPModel>();
+            _logger.LogInformation("Getting MVP for last month");
+
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("GetTop3MostUtilizedLastMonth", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                var mvp = new MVPModel
+                                {
+                                    UserName = reader.GetString(reader.GetOrdinal("User Name")),
+                                    TotalHours = reader.GetDouble(reader.GetOrdinal("Total hours"))
+                                };
+                                mvpList.Add(mvp);
+                                _logger.LogInformation($"MVP data loaded: {mvp.UserName} - {mvp.TotalHours} hours");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting MVP for last month: {ex.Message}");
+                throw;
+            }
+
+            return mvpList;
+        }
+
 
     }
 }
