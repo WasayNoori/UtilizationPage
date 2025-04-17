@@ -21,34 +21,54 @@ namespace UtilizationPage_ASP.Services
 
         public string GetConnectionString() => _connectionString;
 
-        public EntryService(IConfiguration configuration,ILogger<EntryService> logger)
+        public EntryService(IConfiguration configuration, ILogger<EntryService> logger)
         {
             _configuration = configuration;
             _logger = logger;
 
-            var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
-
-            if (isDevelopment)
+            try
             {
-                // Development environment - use hardcoded credentials
-                _connectionString = "Server=tcp:hawkridge.database.windows.net,1433;Initial Catalog=MondayUtilization;Persist Security Info=False;User ID=MondayReader;Password=HawkRidge#1!!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30";
-                _logger.LogInformation("Using development connection string");
-            }
-            else
-            {
-                // Production environment - get credentials from Azure configuration
-                var username = configuration["DbUser"];
-                var password = configuration["Readerpass"];
+                _logger.LogInformation("Starting to configure database connection");
+                var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+                _logger.LogInformation("Environment: {Env}", environment);
 
-                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+                var baseConnectionString = configuration.GetConnectionString("DefaultConnection");
+                if (string.IsNullOrEmpty(baseConnectionString))
                 {
-                    _logger.LogError("Database credentials not found in Azure configuration.");
-                    throw new InvalidOperationException("Database credentials not configured.");
+                    _logger.LogError("Base connection string not found in configuration.");
+                    throw new InvalidOperationException("Base connection string not found in configuration.");
                 }
 
-                var baseConnectionString = _configuration.GetConnectionString("DefaultConnection");
-                _connectionString = baseConnectionString + $";User ID={username};Password={password}";
-                _logger.LogInformation("Production database connection string configured successfully.");
+                // In Development, use the complete connection string from appsettings.Development.json
+                if (environment == "Development")
+                {
+                    _connectionString = baseConnectionString;
+                    _logger.LogInformation("Using development connection string with embedded credentials");
+                }
+                // In Production, replace the password placeholder with Azure configuration value
+                else
+                {
+                    var dbPassword = configuration["Readerpass"];
+                    if (string.IsNullOrEmpty(dbPassword))
+                    {
+                        _logger.LogError("Database password not found in Azure configuration.");
+                        throw new InvalidOperationException("Database password not found in Azure configuration.");
+                    }
+
+                    _connectionString = baseConnectionString.Replace("{0}", dbPassword);
+                    _logger.LogInformation("Using production connection string with Azure-sourced password");
+                }
+
+                _logger.LogInformation("Database connection string configured successfully");
+                _logger.LogInformation("Connection details - Server: {Server}, Database: {Database}, User: {User}", 
+                    "hawkridge.database.windows.net",
+                    "MondayUtilization",
+                    "MondayReader");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to configure database connection");
+                throw;
             }
         }
 
@@ -366,19 +386,29 @@ namespace UtilizationPage_ASP.Services
                     _logger.LogInformation("Database connection successful (get all users).");
 
                     // Get all users with their team information
-                    using (var command = new SqlCommand(@"
+                    var sql = @"
                         SELECT UserName, Email, UserType, Team 
-                        FROM Users Where status='Active'
-                        ORDER BY UserName", connection))
+                        FROM Users 
+                        WHERE status='Active'
+                        ORDER BY UserName";
+                    
+                    _logger.LogInformation("GetAllUsers SQL Query: {SQL}", sql);
+                    
+                    using (var command = new SqlCommand(sql, connection))
                     {
+                        _logger.LogInformation("Executing SQL query to get all users");
                         using (var reader = await command.ExecuteReaderAsync())
                         {
+                            _logger.LogInformation("SQL query executed, processing results");
                             while (await reader.ReadAsync())
                             {
                                 var userName = reader.GetString(reader.GetOrdinal("UserName"));
                                 var email = reader.GetString(reader.GetOrdinal("Email"));
                                 var userType = reader.GetString(reader.GetOrdinal("UserType"));
                                 var team = reader.IsDBNull(reader.GetOrdinal("Team")) ? "NULL" : reader.GetString(reader.GetOrdinal("Team"));
+                                
+                                _logger.LogInformation("Found user in database - Name: {Name}, Email: {Email}, Team: {Team}, Type: {Type}", 
+                                    userName, email, team, userType);
                                 
                                 // Only add users from ES or TS teams
                                 if (team == "ES" || team == "TS")
@@ -389,17 +419,23 @@ namespace UtilizationPage_ASP.Services
                                         Email = email,
                                         UserType = userType
                                     });
+                                    _logger.LogInformation("Added user to result list: {Name} ({Email})", userName, email);
+                                }
+                                else
+                                {
+                                    _logger.LogInformation("Skipped user due to team filter: {Name} ({Email}) - Team: {Team}", 
+                                        userName, email, team);
                                 }
                             }
                         }
                     }
                 }
-                _logger.LogInformation($"Retrieved {users.Count} users from database (filtered by Team='ES' or Team='TS')");
+                _logger.LogInformation("GetAllUsers completed - Retrieved {Count} users (filtered by Team='ES' or Team='TS')", users.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error fetching users: {ex.Message}");
-                _logger.LogError($"Stack trace: {ex.StackTrace}");
+                _logger.LogError(ex, "Error fetching users");
+                throw; // Rethrow to ensure the error is properly handled
             }
             return users;
         }
@@ -408,47 +444,29 @@ namespace UtilizationPage_ASP.Services
         {
             try
             {
-                _logger.LogInformation($"Attempting to get user by email: {email}");
-                using (var connection = new SqlConnection(_connectionString))
+                _logger.LogInformation("GetUserByEmailAsync called with email: {Email}", email);
+                
+                // Get all users and find the matching one
+                var allUsers = await GetAllUsersAsync();
+                var user = allUsers.FirstOrDefault(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+                
+                if (user != null)
                 {
-                    await connection.OpenAsync();
-                    _logger.LogInformation("Database connection successful (get user by email).");
-
-                    using (var command = new SqlCommand(@"
-                        SELECT UserName, Email, UserType, Team 
-                        FROM Users 
-                        WHERE Email = @Email", connection))
-                    {
-                        command.Parameters.AddWithValue("@Email", email);
-                        _logger.LogInformation($"Executing SQL query for email: {email}");
-                        
-                        using (var reader = await command.ExecuteReaderAsync())
-                        {
-                            if (await reader.ReadAsync())
-                            {
-                                var user = new User
-                                {
-                                    UserName = reader.GetString(reader.GetOrdinal("UserName")),
-                                    Email = reader.GetString(reader.GetOrdinal("Email")),
-                                    UserType = reader.GetString(reader.GetOrdinal("UserType"))
-                                };
-                                _logger.LogInformation($"Found user in database: {user.UserName} ({user.Email}) - Type: {user.UserType}");
-                                return user;
-                            }
-                            else
-                            {
-                                _logger.LogWarning($"No user found in database with email: {email}");
-                            }
-                        }
-                    }
+                    _logger.LogInformation("Found user: Name={Name}, Email={Email}, Type={Type}", 
+                        user.UserName, user.Email, user.UserType);
+                    return user;
+                }
+                else
+                {
+                    _logger.LogWarning("No user found with email: {Email}", email);
+                    return null;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error fetching user by email: {ex.Message}");
-                _logger.LogError($"Stack trace: {ex.StackTrace}");
+                _logger.LogError(ex, "Error finding user by email: {Email}", email);
+                return null;
             }
-            return null;
         }
 
         public async Task<List<BoardDistribution>> GetBoardDistributionAsync(string filter, string userEmail)

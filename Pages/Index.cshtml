@@ -234,8 +234,142 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.0.7/css/tabulator.min.css">
     <!-- Add Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
     <script>
+        $(document).ready(function () {
+            console.log("Page initialization started");
+            loadUsers();
+            loadMVPData();
+            // Load weekly data after a short delay to ensure user data is loaded
+            setTimeout(() => {
+                console.log("Loading weekly data after delay");
+                loadWeeklyData();
+            }, 1000);
+            $('#userSelect').change(onUserChange);
+            $('#timeFilter').change(onTimeFilterChange);
+        });
+
+        function loadUsers() {
+            console.group('🔍 loadUsers() Function Execution');
+            console.log('%c Step 1: Function Started', 'background: #222; color: #bada55; font-size: 16px; padding: 4px;');
+            
+            const requestUrl = '/Index?handler=Users';
+            console.log('%c Step 2: Request URL prepared: ' + requestUrl, 'color: #0066cc; font-weight: bold;');
+
+            // Log the current state before making the request
+            console.log('%c Step 3: Current users variable state:', 'color: #9933cc;', typeof users !== 'undefined' ? users : 'undefined');
+
+            $.get(requestUrl)
+                .done(function (data) {
+                    console.group('%c Step 4: AJAX Response Received', 'background: #222; color: #bada55; font-size: 14px;');
+                    console.log('Raw response data:', data);
+                    console.log('Response type:', typeof data);
+                    console.log('Is Array?', Array.isArray(data));
+                    if (data && typeof data === 'object') {
+                        console.log('Has data property?', 'data' in data);
+                        console.log('data.success =', data.success);
+                        if (data.data) {
+                            console.log('data.data type:', typeof data.data);
+                            console.log('data.data is Array?', Array.isArray(data.data));
+                        }
+                    }
+                    console.groupEnd();
+
+                    if (data && Array.isArray(data)) {
+                        console.log('%c Step 5A: Direct array response received', 'color: #00aa00; font-weight: bold;');
+                        users = data;
+                        console.table(users);
+                        populateUserDropdown();
+                    } else if (data && data.data && Array.isArray(data.data)) {
+                        console.log('%c Step 5B: Nested array response received', 'color: #00aa00; font-weight: bold;');
+                        users = data.data;
+                        console.table(users);
+                        populateUserDropdown();
+                    } else {
+                        console.error('%c Step 5C: Invalid data format received', 'color: #aa0000; font-weight: bold;');
+                        console.error('Received data structure:', data);
+                        $('#userSelect').html('<option value="">Error loading users</option>');
+                    }
+                })
+                .fail(function(jqXHR, textStatus, errorThrown) {
+                    console.group('%c AJAX Error Details', 'background: #aa0000; color: white; font-size: 14px;');
+                    console.error('Status Code:', jqXHR.status);
+                    console.error('Status Text:', jqXHR.statusText);
+                    console.error('Response Text:', jqXHR.responseText);
+                    console.error('Error Thrown:', errorThrown);
+                    console.groupEnd();
+                    
+                    $('#userSelect').html('<option value="">Error loading users</option>');
+                })
+                .always(function() {
+                    console.groupEnd(); // End the loadUsers group
+                });
+        }
+
+        function populateUserDropdown() {
+            console.group('🔄 populateUserDropdown() Function Execution');
+            console.log('%c Step 1: Starting dropdown population', 'background: #222; color: #bada55; font-size: 14px;');
+            
+            // Log the users variable state
+            console.log('Current users variable:', users);
+            console.log('Users type:', typeof users);
+            console.log('Is users an array?', Array.isArray(users));
+            console.log('Users length:', users ? users.length : 'N/A');
+
+            if (!users || !Array.isArray(users) || users.length === 0) {
+                console.warn('%c Step 2A: No valid users data available', 'color: #aa7700; font-weight: bold;');
+                $('#userSelect').html('<option value="">No users available</option>');
+                console.groupEnd();
+                return;
+            }
+
+            console.log('%c Step 2B: Valid users data found', 'color: #00aa00; font-weight: bold;');
+            console.table(users);
+            
+            var select = $('#userSelect');
+            console.log('Select element found:', select.length > 0);
+            
+            select.empty();
+            console.log('Dropdown cleared');
+            
+            // Add the default "Select User" option
+            select.append('<option value="">Select User</option>');
+            console.log('Default option added');
+            
+            // Sort users by name
+            users.sort((a, b) => a.userName.localeCompare(b.userName));
+            console.log('Users sorted alphabetically');
+            
+            users.forEach(function(user, index) {
+                console.log(`Adding user ${index + 1}:`, user);
+                var option = $('<option>', {
+                    value: user.email,
+                    text: user.userName
+                });
+                select.append(option);
+            });
+            
+            // Log final state
+            console.log('%c Final dropdown state:', 'color: #0066cc;');
+            $('#userSelect option').each(function() {
+                console.log(`Option: ${$(this).text()} (value: ${$(this).val()})`);
+            });
+
+            // Try to set current user
+            var currentUserEmail = $('#currentUserEmailInput').data('email');
+            if (currentUserEmail) {
+                console.log('Attempting to set current user:', currentUserEmail);
+                select.val(currentUserEmail);
+                console.log('Selected value after setting:', select.val());
+                if (select.val() !== currentUserEmail) {
+                    console.warn('Could not set current user in dropdown');
+                }
+            }
+
+            console.groupEnd();
+        }
+
         var table = new Tabulator("#timeTrackingTable", {
             layout: "fitColumns",
             dataTree: true,
@@ -524,66 +658,6 @@
         let currentUserType = null;
         let currentUserEmail = null;
 
-        function loadUsers() {
-            fetch('/Index?handler=Users')
-                .then(response => response.json())
-                .then(result => {
-                    if (result.success) {
-                        const userSelect = document.getElementById('userSelect');
-                        const loggedInUserEmail = document.getElementById('currentUserEmailInput').dataset.email;
-                        
-                        console.log('Authentication email:', loggedInUserEmail); // Debug log
-                        console.log('All users from database:', result.data.map(u => ({ name: u.userName, email: u.email }))); // Debug log
-                        
-                        // Find the current user in the results
-                        const currentUser = result.data.find(user => {
-                            console.log(`Comparing ${user.email.toLowerCase()} with ${loggedInUserEmail.toLowerCase()}`); // Debug log
-                            return user.email.toLowerCase() === loggedInUserEmail.toLowerCase();
-                        });
-                        
-                        if (currentUser) {
-                            console.log('Found current user:', currentUser); // Debug log
-                            // Set the current user type and email
-                            currentUserType = currentUser.userType;
-                            currentUserEmail = currentUser.email; // Set the global currentUserEmail
-                            
-                            // Update the greeting
-                            document.getElementById('userGreeting').textContent = currentUser.userName;
-                            
-                            // Populate dropdown with current user first
-                            userSelect.innerHTML = `<option value="${currentUser.email}">${currentUser.userName}</option>`;
-                            
-                            // Add other users
-                            result.data.forEach(user => {
-                                if (user.email !== currentUser.email) {
-                                    userSelect.innerHTML += `<option value="${user.email}">${user.userName}</option>`;
-                                }
-                            });
-                            
-                            // Set disabled state based on user type (case-insensitive and trimmed)
-                            userSelect.disabled = currentUserType.trim().toLowerCase() !== 'manager';
-                            
-                            // Load initial data
-                            const currentValue = document.getElementById('timeFilter').value;
-                            const isMonthly = currentValue.startsWith('Month_');
-                            loadData(false, isMonthly);
-                            if (!isMonthly) {
-                                loadWeeklyTotals('THIS', 'weeklyTotalsThis');
-                                loadWeeklyTotals('LAST', 'weeklyTotalsLast');
-                            }
-                            loadMonthlyComparison();
-                        } else {
-                            console.error('Current user not found in users list. Email:', loggedInUserEmail);
-                        }
-                    } else {
-                        console.error('Failed to load users:', result.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading users:', error);
-                });
-        }
-
         function handleUserChange(email) {
             if (!email) return;
             
@@ -762,10 +836,26 @@
         }
 
         function loadWeeklyData() {
+            console.log('loadWeeklyData called');
+            // Get the current user email if none is set
+            if (!currentUserEmail) {
+                currentUserEmail = $('#currentUserEmailInput').data('email');
+                console.log('Setting currentUserEmail from input:', currentUserEmail);
+            }
+
+            if (!currentUserEmail) {
+                console.log('No user email available, skipping weekly data load');
+                return;
+            }
+
             console.log('Loading weekly data for user:', currentUserEmail);
             fetch(`/Index?handler=WeeklyVisualizationData&userEmail=${encodeURIComponent(currentUserEmail)}`)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Weekly data response received:', response.status);
+                    return response.json();
+                })
                 .then(result => {
+                    console.log('Weekly data result:', result);
                     if (result.success) {
                         const data = result.data;
                         console.log('Received visualization data:', data);
@@ -810,7 +900,6 @@
                                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
                                         tension: 0,
                                         fill: false
-                                    
                                     },
                                     {
                                         label: 'Team Average Hours',
@@ -867,14 +956,8 @@
                                                     lineDash: dataset.borderDash,
                                                     index: i
                                                 }));
-                                            },
-                                            onClick: function(e, legendItem, legend) {
-                                                const index = legendItem.index;
-                                                const chart = legend.chart;
-                                                chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
-                                                chart.update();
                                             }
-                                        },
+                                        }
                                     }
                                 },
                                 scales: {
@@ -902,7 +985,9 @@
                         console.error('Error loading visualization data:', result.error);
                     }
                 })
-                .catch(error => console.error('Error fetching visualization data:', error));
+                .catch(error => {
+                    console.error('Error fetching visualization data:', error);
+                });
         }
 
         // Make sure the chart is loaded when switching to the visualizations tab

@@ -46,14 +46,47 @@ public class IndexModel : PageModel
 
     private string GetDevelopmentUserEmail() => _configuration["TestUser:Email"] ?? "wasay@hawkridgesys.com";
 
-    private string GetUserEmail(ClaimsPrincipal user) => user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("preferred_username");
+    private string GetUserEmail(ClaimsPrincipal user)
+    {
+        _logger.LogInformation("GetUserEmail called - Environment: {Env}", 
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Not Set");
+
+        // Log all available claims for debugging
+        var allClaims = user.Claims.Select(c => $"{c.Type}: {c.Value}").ToList();
+        _logger.LogInformation("All available claims: {Claims}", string.Join(Environment.NewLine, allClaims));
+
+        // Try all possible claim types for email in order of preference
+        var email = user.FindFirstValue("preferred_username") // Azure AD preferred_username
+            ?? user.FindFirstValue("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress") // Standard email claim
+            ?? user.FindFirstValue("email") // Azure AD email
+            ?? user.FindFirstValue(ClaimTypes.Email) // Standard .NET email claim
+            ?? user.FindFirstValue(ClaimTypes.Upn); // UPN claim often contains email
+
+        _logger.LogInformation("Retrieved user email from claims: {Email}", email ?? "not found");
+        
+        if (string.IsNullOrEmpty(email))
+        {
+            _logger.LogWarning("No email found in claims. Identity details:");
+            _logger.LogWarning("- IsAuthenticated: {IsAuthenticated}", user.Identity?.IsAuthenticated);
+            _logger.LogWarning("- AuthenticationType: {AuthType}", user.Identity?.AuthenticationType);
+            _logger.LogWarning("- Name from Identity: {Name}", user.Identity?.Name);
+        }
+
+        return email;
+    }
 
     private string GetSelectedUserEmail(string userEmail = null)
     {
         bool isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
-        return !string.IsNullOrEmpty(userEmail) ? userEmail : 
-               isDevelopment ? GetDevelopmentUserEmail() : 
-               GetUserEmail(User);
+        _logger.LogInformation("GetSelectedUserEmail - IsDevelopment: {IsDev}, ProvidedEmail: {Email}", 
+            isDevelopment, userEmail ?? "none");
+
+        var selectedEmail = !string.IsNullOrEmpty(userEmail) ? userEmail : 
+                          isDevelopment ? GetDevelopmentUserEmail() : 
+                          GetUserEmail(User);
+
+        _logger.LogInformation("Selected email result: {Email}", selectedEmail ?? "none");
+        return selectedEmail;
     }
 
     public async Task<IActionResult> OnGetEntriesAsync(string filter, string userEmail = null)
@@ -105,20 +138,34 @@ public class IndexModel : PageModel
     {
         try
         {
+            _logger.LogInformation("OnGetUsers endpoint called - Starting execution");
             var currentUserEmail = GetSelectedUserEmail();
+            _logger.LogInformation("OnGetUsers - Current user email: {Email}", currentUserEmail);
+
             var currentUser = await _entryService.GetUserByEmailAsync(currentUserEmail);
+            _logger.LogInformation("OnGetUsers - User lookup result: {Result}", currentUser != null ? "Found" : "Not Found");
             
             if (currentUser == null)
             {
+                _logger.LogWarning("OnGetUsers - User not found in database for email: {Email}", currentUserEmail);
                 return new JsonResult(new { success = false, message = "User not found" });
             }
 
+            _logger.LogInformation("OnGetUsers - About to call GetAllUsersAsync");
             var users = await _entryService.GetAllUsersAsync();
+            _logger.LogInformation("OnGetUsers - Retrieved {Count} users from database", users?.Count ?? 0);
+            
+            if (users != null && users.Any())
+            {
+                _logger.LogInformation("OnGetUsers - First few users retrieved: {Users}", 
+                    string.Join(", ", users.Take(3).Select(u => $"{u.UserName} ({u.Email})")));
+            }
+            
             return new JsonResult(new { success = true, data = users });
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error in OnGetUsers: {ex.Message}");
+            _logger.LogError(ex, "Error in OnGetUsers");
             return new JsonResult(new { success = false, message = ex.Message });
         }
     }
