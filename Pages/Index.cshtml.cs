@@ -306,4 +306,18 @@ public class IndexModel : PageModel
             return new JsonResult(new { error = "Failed to fetch last month MVP data" }) { StatusCode = 500 };
         }
     }
+
+    public async Task<IActionResult> OnGetTopPerformances()
+    {
+        try
+        {
+            var performanceData = await _entryService.GeTopPerformances();
+            return new JsonResult(performanceData);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error fetching top performances data: {ex.Message}");
+            return new JsonResult(new { error = "Failed to fetch top performances data" }) { StatusCode = 500 };
+        }
+    }
 }

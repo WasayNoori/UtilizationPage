@@ -96,3 +96,21 @@ public class TopPerformerModel
     public double TotalHours { get; set; } = 0;
 
 }
+
+
+public class TopBrassModel
+{
+    public string Title { get; set; }
+    public string UserHoursYtd { get; set; } // the combination of user and the hours. 
+    public string UserHoursLastMonth { get; set; }
+
+
+}
+
+public class BoardsModel
+{
+    public string UserName { get; set; }
+    public int ItemCount { get; set; }
+
+
+}

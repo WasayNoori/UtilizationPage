@@ -188,7 +188,7 @@
                 <div class="row justify-content-center">
                     <div class="col-md-5">
                         <div class="card mvp-card">
-                            <div class="card-header text-center" style="background: linear-gradient(45deg, #FFD700, #FFA500); color: #2C3E50; font-size: 22px; font-weight: bold; text-transform: uppercase; padding: 20px;">
+                            <div class="card-header text-center" style="background: linear-gradient(45deg, #FFD700, #FFA500); color: #2C3E50; font-size: 22px; font-weight: bold; text-transform: uppercase; padding: 14px;">
                                 <i class="fas fa-trophy" style="color: #2C3E50; margin-right: 10px;"></i>
                                 Most Utilized Overall
                             </div>
@@ -210,7 +210,7 @@
                     </div>
                     <div class="col-md-5">
                         <div class="card mvp-card">
-                            <div class="card-header text-center" style="background: linear-gradient(45deg, #FFD700, #FFA500); color: #2C3E50; font-size: 22px; font-weight: bold; text-transform: uppercase; padding: 20px;">
+                            <div class="card-header text-center" style="background: linear-gradient(45deg, #FFD700, #FFA500); color: #2C3E50; font-size: 22px; font-weight: bold; text-transform: uppercase; padding: 14px;">
                                 <i class="fas fa-trophy" style="color: #2C3E50; margin-right: 10px;"></i>
                                 Most Utilized in <span id="currentMonthName"></span>
                             </div>
@@ -224,6 +224,30 @@
                                         </tr>
                                     </thead>
                                     <tbody id="mvpLastMonthTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row justify-content-center mt-4">
+                    <div class="col-md-10">
+                        <div class="card mvp-card">
+                            <div class="card-header text-center" style="background: linear-gradient(45deg, #4B79A1, #283E51); color: white; font-size: 22px; font-weight: bold; text-transform: uppercase; padding: 14px;">
+                                <i class="fas fa-star" style="color: white; margin-right: 10px;"></i>
+                                Activity Heros
+                            </div>
+                            <div class="card-body" style="background: #FFFFFF;">
+                                <table class="table" id="topPerformersTable">
+                                    <thead>
+                                        <tr style="background: #2C3E50; color: white; line-height: 0.75;">
+                                            <th scope="col" style="font-size: 18px; padding: 12px;">Activity</th>
+                                            <th scope="col" style="font-size: 18px; padding: 12px;">YTD</th>
+                                            <th scope="col" style="font-size: 18px; padding: 12px;">Last Month</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="boardChampionsTableBody">
                                         <!-- Data will be populated by JavaScript -->
                                     </tbody>
                                 </table>
@@ -1111,6 +1135,23 @@
                         <td class="text-center" style="font-size: 16px;">${mvp.totalHours.toFixed(2)}</td>
                     `;
                     lastMonthTbody.appendChild(row);
+                });
+
+                // Load top performers data
+                const performancesResponse = await fetch('/Index?handler=TopPerformances');
+                const performancesData = await performancesResponse.json();
+                
+                const performancesTbody = document.getElementById('boardChampionsTableBody');
+                performancesTbody.innerHTML = '';
+                
+                performancesData.forEach(performance => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="font-size: 16px; font-weight: bold;">${performance.title}</td>
+                        <td style="font-size: 16px; font-weight: bold;">${performance.userHoursYtd}</td>
+                        <td style="font-size: 16px; font-weight: bold;">${performance.userHoursLastMonth}</td>
+                    `;
+                    performancesTbody.appendChild(row);
                 });
             } catch (error) {
                 console.error('Error loading MVP data:', error);

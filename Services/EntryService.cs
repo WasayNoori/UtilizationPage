@@ -801,6 +801,9 @@ namespace UtilizationPage_ASP.Services
             return weeklyData;
         }
 
+
+
+        #region MVP 
         public async Task<List<MVPModel>> GetMVPOverall()
         {
             var mvpList = new List<MVPModel>();
@@ -878,16 +881,123 @@ namespace UtilizationPage_ASP.Services
 
             return mvpList;
         }
-
-        ///Get Top performaers
-        public async Task<List<TopPerformerModel>> GetTopPerformers()
+        public async Task<List<TopBrassModel>> GeTopPerformances()
         {
-            return new List<TopPerformerModel> { new TopPerformerModel() };
+
+            ///Read a SQL table
+            ///for each row of the table, pass it to a stored procedure and get the resultaing values
+            ///construct the list from those values
+            ///return the list
+
+            TopBrassModel topBrassModel = new TopBrassModel();
+            topBrassModel.Title = "TOP Most Something";
+            List<TopBrassModel> topBraslist = new List<TopBrassModel>();
+
+            try
+            {
+
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+
+                    // Get all users with their team information
+                    var sql = @"
+                        SELECT Title,BoardID from topCategories";
+
+
+
+                    using (var command = new SqlCommand(sql, connection))
+                    {
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+
+                            while (await reader.ReadAsync())
+                            {
+                                var title = reader.GetString(reader.GetOrdinal("Title"));
+                                var boardid = reader.GetInt64(reader.GetOrdinal("BoardID"));
+                                var getCountYTD = await GetTopForBoard(boardid);
+                                // Calculate last month (if current month is January, last month is 12)
+                                int lastMonth = DateTime.Now.Month == 1 ? 12 : DateTime.Now.Month - 1;
+                                var getCountforMonth = await GetTopForBoard(boardid, lastMonth);
+
+                                topBraslist.Add(new TopBrassModel { Title = title, UserHoursYtd = getCountYTD, UserHoursLastMonth = getCountforMonth });
+
+
+                            }
+                        }
+                    }
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                throw; // Rethrow to ensure the error is properly handled
+            }
+
+
+
+            return topBraslist;
+
 
         }
 
-     
+        private async Task<string> GetTopForBoard(long boardId, int? monthNumber = null)
+        {
 
+            string formattedResult = string.Empty;
+
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+                    using (SqlCommand command = new SqlCommand("GetTopForBoard", connection))
+                    {
+                        command.CommandType = System.Data.CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@boardID", boardId);
+
+                        if (monthNumber.HasValue)
+                        {
+                            command.Parameters.AddWithValue("@month", monthNumber.Value);
+                        }
+
+                        using (SqlDataReader reader = await command.ExecuteReaderAsync())
+                        {
+                            if (await reader.ReadAsync())
+                            {
+                                string username = reader.GetString(reader.GetOrdinal("Username"));
+                                int itemCount = reader.GetInt32(reader.GetOrdinal("ItemCount"));
+                                formattedResult = $"{username} ({itemCount})";
+                            }
+                            // If no row is returned, formattedResult will remain empty
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing GetTopForBoard: {ex.Message}");
+                return $"Error: Could not retrieve data.";
+            }
+
+            return formattedResult;
+
+
+
+
+        }
+
+
+        ///Get Top performaers
+
+
+
+        #endregion
 
     }
 }
