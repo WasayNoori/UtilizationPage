@@ -96,6 +96,11 @@
                 <div id="loadingOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 1000; text-align: center; padding-top: 200px;">
                     Loading data...
                 </div>
+                <div style="text-align: right; margin-bottom: 10px; padding: 5px 10px; background-color: #f8f9fa; border-radius: 5px; display: inline-block; float: right;">
+                    <span style="font-weight: 500; color: #0d6efd;">Total Time:</span>
+                    <span id="periodTotalTime" style="margin-left: 5px; font-weight: bold;">Loading...</span>
+                </div>
+                <div style="clear: both;"></div>
                 <div id="timeTrackingTable"></div>
             </div>
 
@@ -522,10 +527,17 @@
                 const cache = cacheType === 'monthly' ? dataCache.monthlyData : dataCache.entries;
                 console.log('Cached data structure:', JSON.stringify(cache[filterValue].data, null, 2));
                 table.setData(cache[filterValue].data);
+                
+                // Calculate and display total time from cache
+                const totalHours = cache[filterValue].data.reduce((total, board) => {
+                    return total + parseHours(board.hours);
+                }, 0);
+                document.getElementById('periodTotalTime').textContent = formatTotalHours(totalHours);
                 return;
             }
 
             overlay.style.display = 'block';
+            document.getElementById('periodTotalTime').textContent = 'Loading...';
             
             fetch(`/Index?handler=Entries&filter=${encodeURIComponent(filterValue)}&userEmail=${encodeURIComponent(currentUserEmail)}`)
                 .then(response => response.json())
@@ -533,6 +545,7 @@
                     console.log('Received response:', result);
                     if (!result.success) {
                         console.error('Error in response:', result.error);
+                        document.getElementById('periodTotalTime').textContent = 'Error';
                         return;
                     }
                     
@@ -542,6 +555,9 @@
                         const hours = parseHours(board.hours);
                         return total + hours;
                     }, 0);
+
+                    // Update total time display
+                    document.getElementById('periodTotalTime').textContent = formatTotalHours(totalHours);
 
                     // Add percentage to board-level entries
                     data.forEach(board => {
@@ -568,6 +584,7 @@
                 .catch(error => {
                     console.error('Error loading data:', error);
                     overlay.style.display = 'none';
+                    document.getElementById('periodTotalTime').textContent = 'Error';
                 });
         }
 

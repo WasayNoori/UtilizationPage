@@ -88,3 +88,11 @@ public class MVPOverallViewModel
     public double TotalHours { get; set; }
 }
 
+
+public class TopPerformerModel
+{
+    public string Title { get; set; } = "";
+    public string UserName { get; set; } = "";
+    public double TotalHours { get; set; } = 0;
+
+}
