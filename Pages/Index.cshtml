@@ -1133,6 +1133,8 @@
 
         // Add this to your existing tab event listeners
         document.getElementById('profile-tab').addEventListener('shown.bs.tab', function (e) {
+            // Reset team filter to "All"
+            document.getElementById('teamFilter').value = 'All';
             loadTimeBreakdown();
         });
 

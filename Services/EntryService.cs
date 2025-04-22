@@ -1058,39 +1058,60 @@ namespace UtilizationPage_ASP.Services
                 return new List<TimeBreakDownModel>();
             }
 
-            var totalRow = dataFromSP.LastOrDefault(item => item.Category.ToUpper() == "TOTAL");
-            double totalHours = totalRow?.Hours ?? 0;
+            var totalRow = dataFromSP.FirstOrDefault(item => item.Category.ToUpper() == "TOTAL");
+            if (totalRow == null) return dataFromSP;
+
+            double totalHours = totalRow.Hours;
+            double categorizedHoursSum = dataFromSP
+                .Where(item => item.Category.ToUpper() != "TOTAL")
+                .Sum(item => item.Hours);
 
             var processedData = new List<TimeBreakDownModel>();
 
-            foreach (var item in dataFromSP)
+            // Add all non-total categories with their percentages
+            foreach (var item in dataFromSP.Where(x => x.Category.ToUpper() != "TOTAL"))
             {
                 string percentage = "0%";
-                if (item.Category.ToUpper() != "TOTAL" && totalHours > 0)
+                if (totalHours > 0)
                 {
                     double calculatedPercentage = (item.Hours / totalHours) * 100;
-                    if (calculatedPercentage < 2)
-                    {
-                        percentage = "<2%";
-                    }
-                    else
-                    {
-                        percentage = $"{Math.Round(calculatedPercentage)}%";
-                    }
-                }
-                else if (item.Category.ToUpper() == "TOTAL")
-                {
-                    percentage = "100%";
+                    percentage = calculatedPercentage < 2 ? "<2%" : $"{Math.Round(calculatedPercentage)}%";
                 }
 
                 processedData.Add(new TimeBreakDownModel
                 {
                     Category = item.Category,
                     Hours = item.Hours,
-                    Percentage = percentage,
-                    Total = item.Total
+                    Percentage = percentage
                 });
             }
+
+            // Add OTHER category
+            double otherHours = totalHours - categorizedHoursSum;
+            if (otherHours > 0)
+            {
+                string otherPercentage = "0%";
+                if (totalHours > 0)
+                {
+                    double calculatedPercentage = (otherHours / totalHours) * 100;
+                    otherPercentage = calculatedPercentage < 2 ? "<2%" : $"{Math.Round(calculatedPercentage)}%";
+                }
+
+                processedData.Add(new TimeBreakDownModel
+                {
+                    Category = "Other",
+                    Hours = otherHours,
+                    Percentage = otherPercentage
+                });
+            }
+
+            // Add TOTAL row at the end
+            processedData.Add(new TimeBreakDownModel
+            {
+                Category = "Total",
+                Hours = totalHours,
+                Percentage = "100%"
+            });
 
             return processedData;
         }
