@@ -114,3 +114,11 @@ public class BoardsModel
 
 
 }
+
+public class TimeBreakDownModel
+{
+    public string Category { get; set; }
+    public double Hours { get; set; }
+    public string Percentage { get; set; }
+    public double Total { get; set; }
+}

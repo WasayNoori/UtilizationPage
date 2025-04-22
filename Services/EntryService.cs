@@ -727,19 +727,11 @@ namespace UtilizationPage_ASP.Services
                         using (var reader = await command.ExecuteReaderAsync())
                         {
                             _logger.LogInformation($"Result set structure: FieldCount={reader.FieldCount}");
-                            for (int i = 0; i < reader.FieldCount; i++)
-                            {
-                                _logger.LogInformation($"Column {i}: Name={reader.GetName(i)}, Type={reader.GetFieldType(i).Name}");
-                            }
+                       
 
                             if (await reader.ReadAsync())
                             {
-                                // Log the first row's content for debugging
-                                for (int i = 0; i < reader.FieldCount; i++)
-                                {
-                                    _logger.LogInformation($"First row, Column {i} ({reader.GetName(i)}) = {reader.GetValue(i)}");
-                                }
-
+                            
                                 // If it's an error message
                                 if (reader.FieldCount == 1 && reader.GetName(0) == "Message")
                                 {
@@ -994,6 +986,115 @@ namespace UtilizationPage_ASP.Services
 
 
         ///Get Top performaers
+
+
+
+        #endregion
+
+        #region Breakdown
+
+        public async Task<List<TimeBreakDownModel>>GetTimeBreakdown(string Team)
+        {
+        
+            var hoursbreakdown=new List <TimeBreakDownModel>();
+            var teamparam = "";
+            if (Team == "Services") teamparam = "ES";
+            if (Team == "Tech Sales") teamparam = "TS";
+
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("hoursbreakdown", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        if(!string.IsNullOrEmpty(Team) && Team!="All")
+                        {
+                            command.Parameters.AddWithValue("@Team",teamparam);
+                        }
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                var entry = new TimeBreakDownModel
+                                {
+                                    
+                                   Category=reader.GetString(reader.GetOrdinal("Category")),
+                                   Hours=reader.GetDouble(reader.GetOrdinal("TotalHours"))
+
+                                  
+                                };
+                                hoursbreakdown.Add(entry);
+                            }
+                        }
+                    }
+                }
+
+
+
+
+                List<TimeBreakDownModel> formattedList=new List<TimeBreakDownModel>();
+                formattedList=ProcessTimeBreakdownData(hoursbreakdown);
+                return formattedList;
+            }
+            catch (Exception ex)
+            {
+               
+                throw;
+            }
+
+          
+
+
+            return hoursbreakdown;
+
+        }
+        public List<TimeBreakDownModel> ProcessTimeBreakdownData(List<TimeBreakDownModel> dataFromSP)
+        {
+            if (dataFromSP == null || !dataFromSP.Any())
+            {
+                return new List<TimeBreakDownModel>();
+            }
+
+            var totalRow = dataFromSP.LastOrDefault(item => item.Category.ToUpper() == "TOTAL");
+            double totalHours = totalRow?.Hours ?? 0;
+
+            var processedData = new List<TimeBreakDownModel>();
+
+            foreach (var item in dataFromSP)
+            {
+                string percentage = "0%";
+                if (item.Category.ToUpper() != "TOTAL" && totalHours > 0)
+                {
+                    double calculatedPercentage = (item.Hours / totalHours) * 100;
+                    if (calculatedPercentage < 2)
+                    {
+                        percentage = "<2%";
+                    }
+                    else
+                    {
+                        percentage = $"{Math.Round(calculatedPercentage)}%";
+                    }
+                }
+                else if (item.Category.ToUpper() == "TOTAL")
+                {
+                    percentage = "100%";
+                }
+
+                processedData.Add(new TimeBreakDownModel
+                {
+                    Category = item.Category,
+                    Hours = item.Hours,
+                    Percentage = percentage,
+                    Total = item.Total
+                });
+            }
+
+            return processedData;
+        }
+
 
 
 

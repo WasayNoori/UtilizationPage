@@ -264,6 +264,20 @@ public class IndexModel : PageModel
         }
     }
 
+    public async Task<IActionResult> OnGetTimeBreakdownAsync(string team = "All")
+    {
+        try
+        {
+            var breakdownData = await _entryService.GetTimeBreakdown(team);
+            return new JsonResult(new { success = true, data = breakdownData });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting time breakdown: {ex.Message}");
+            return new JsonResult(new { success = false, error = "Error retrieving time breakdown data" });
+        }
+    }
+
     public async Task<IActionResult> OnGetWeeklyVisualizationDataAsync(string userEmail = null)
     {
         try
