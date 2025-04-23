@@ -1123,8 +1123,35 @@ namespace UtilizationPage_ASP.Services
       
         public async  Task<List<ReviewModel>>GetReiews()
         {
+
+            //Select Stars,Comment from Review
             return new List<ReviewModel>();
 
+        }
+
+        public async Task<double> GetAverageRating()
+        {
+            try
+            {
+                _logger.LogInformation("Getting average star rating");
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("GetAverageStarRating", connection))
+                    {
+                        command.CommandType = System.Data.CommandType.StoredProcedure;
+                        var result = await command.ExecuteScalarAsync();
+                        var rating = result != DBNull.Value ? Convert.ToDouble(result) : 0;
+                        _logger.LogInformation($"Average rating retrieved: {rating}");
+                        return rating;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting average rating: {ex.Message}");
+                return 0;
+            }
         }
 
 

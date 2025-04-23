@@ -355,6 +355,20 @@ public class IndexModel : PageModel
         }
     }
 
+    public async Task<IActionResult> OnGetAverageRatingAsync()
+    {
+        try
+        {
+            var rating = await _entryService.GetAverageRating();
+            return new JsonResult(new { success = true, averageRating = rating });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting average rating: {ex.Message}");
+            return new JsonResult(new { success = false, error = ex.Message });
+        }
+    }
+
     public class ReviewRequest
     {
         public int Stars { get; set; }
