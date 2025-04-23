@@ -1,4 +1,6 @@
-﻿namespace UtilizationPage_ASP.Services
+﻿using System.Diagnostics.Contracts;
+
+namespace UtilizationPage_ASP.Services
 {
 
     
@@ -122,3 +124,10 @@ public class TimeBreakDownModel
     public string Percentage { get; set; }
     public double Total { get; set; }
 }
+public class ReviewModel
+{
+    public int Stars { get; set; }
+    public string Email { get; set; }
+    public string Comments { get; set; }
+}
+

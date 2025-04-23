@@ -1120,6 +1120,21 @@ namespace UtilizationPage_ASP.Services
 
 
         #endregion
+      
+        public async  Task<List<ReviewModel>>GetReiews()
+        {
+            return new List<ReviewModel>();
 
+        }
+
+
+        public async Task AddReview(string email, int stars, string commments)
+        {
+
+        }
+        #region Reviews
+
+        
+        #endregion
     }
 }
