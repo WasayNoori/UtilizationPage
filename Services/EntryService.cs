@@ -1128,9 +1128,31 @@ namespace UtilizationPage_ASP.Services
         }
 
 
-        public async Task AddReview(string email, int stars, string commments)
+        public async Task AddReview(string userEmail, int stars, string comments)
         {
-
+            try
+            {
+                _logger.LogInformation($"Adding review for user {userEmail} with {stars} stars");
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("[dbo].[UpsertReview]", connection))
+                    {
+                        command.CommandType = System.Data.CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@p_User_Email", userEmail);
+                        command.Parameters.AddWithValue("@p_Stars", stars);
+                        command.Parameters.AddWithValue("@p_Comment", (object)comments ?? DBNull.Value);
+                        
+                        await command.ExecuteNonQueryAsync();
+                        _logger.LogInformation($"Successfully added review for user {userEmail}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error adding review: {ex.Message}");
+                throw;
+            }
         }
         #region Reviews
 

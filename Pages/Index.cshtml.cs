@@ -334,4 +334,30 @@ public class IndexModel : PageModel
             return new JsonResult(new { error = "Failed to fetch top performances data" }) { StatusCode = 500 };
         }
     }
+
+    public async Task<IActionResult> OnPostAddReviewAsync([FromBody] ReviewRequest request)
+    {
+        try
+        {
+            var userEmail = GetSelectedUserEmail();
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                return BadRequest("User not authenticated");
+            }
+
+            await _entryService.AddReview(userEmail, request.Stars, request.Comments);
+            return new JsonResult(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error adding review: {ex.Message}");
+            return BadRequest("Error submitting feedback");
+        }
+    }
+
+    public class ReviewRequest
+    {
+        public int Stars { get; set; }
+        public string Comments { get; set; }
+    }
 }

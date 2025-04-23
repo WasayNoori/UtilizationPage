@@ -92,6 +92,9 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab" aria-controls="profile" aria-selected="false">Profile</button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="feedback-tab" data-bs-toggle="tab" data-bs-target="#feedback" type="button" role="tab" aria-controls="feedback" aria-selected="false">Feedback</button>
+        </li>
     </ul>
     <div class="tab-content" id="myTabContent">
         <div class="tab-pane fade show active" id="utilization" role="tabpanel" aria-labelledby="utilization-tab">
@@ -294,6 +297,40 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="feedback" role="tabpanel" aria-labelledby="feedback-tab">
+            <div class="container mt-4">
+                <div class="card">
+                    <div class="card-body">
+                        <form id="feedbackForm">
+                            @Html.AntiForgeryToken()
+                            <div class="form-group mb-4">
+                                <label>Rating</label>
+                                <div class="star-rating">
+                                    <input type="radio" id="star5" name="rating" value="5" />
+                                    <label for="star5" title="5 stars">★</label>
+                                    <input type="radio" id="star4" name="rating" value="4" />
+                                    <label for="star4" title="4 stars">★</label>
+                                    <input type="radio" id="star3" name="rating" value="3" />
+                                    <label for="star3" title="3 stars">★</label>
+                                    <input type="radio" id="star2" name="rating" value="2" />
+                                    <label for="star2" title="2 stars">★</label>
+                                    <input type="radio" id="star1" name="rating" value="1" />
+                                    <label for="star1" title="1 star">★</label>
+                                </div>
+                                <div id="ratingError" class="text-danger d-none">Please select a rating</div>
+                            </div>
+
+                            <div class="form-group mb-4">
+                                <label for="comment">Comments (Optional)</label>
+                                <textarea class="form-control" id="comment" name="comment" rows="4" placeholder="Share your thoughts..."></textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Submit Feedback</button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -1230,6 +1267,46 @@
             console.log('Selected value:', $(this).val());
             loadTimeBreakdown($(this).val());
         });
+
+        // Add feedback form submission handler
+        document.getElementById('feedbackForm')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const rating = document.querySelector('input[name="rating"]:checked');
+            const comment = document.getElementById('comment').value;
+            const ratingError = document.getElementById('ratingError');
+            
+            if (!rating) {
+                ratingError.classList.remove('d-none');
+                return;
+            }
+            
+            ratingError.classList.add('d-none');
+            
+            try {
+                const response = await fetch('?handler=AddReview', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                    },
+                    body: JSON.stringify({
+                        stars: parseInt(rating.value),
+                        comments: comment
+                    })
+                });
+
+                if (response.ok) {
+                    alert('Thank you for your feedback!');
+                    this.reset();
+                } else {
+                    alert('There was an error submitting your feedback. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('There was an error submitting your feedback. Please try again.');
+            }
+        });
     </script>
 </div>
 
@@ -1245,4 +1322,42 @@
     .mvp-card:hover {
         transform: translateY(-5px);
     }
+
+    .star-rating {
+        display: flex;
+        flex-direction: row-reverse;
+        font-size: 2em;
+        justify-content: flex-end;
+        padding: 0.5em 0;
+    }
+
+    .star-rating input {
+        display: none;
+    }
+
+    .star-rating label {
+        color: #ddd;
+        cursor: pointer;
+        padding: 0 0.1em;
+        transition: color 0.2s;
+    }
+
+    .star-rating label:hover,
+    .star-rating label:hover ~ label,
+    .star-rating input:checked ~ label {
+        color: #ffd700;
+    }
+
+    .star-rating label:hover,
+    .star-rating label:hover ~ label {
+        color: #ffed4a;
+    }
 </style>
+
+@section Scripts {
+    <script>
+        // ... existing code ...
+
+        // Remove duplicate event listener, keeping only the one in the main script block
+    </script>
+}
