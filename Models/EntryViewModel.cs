@@ -68,6 +68,8 @@ public class WeekendEntryViewModel
     public string GroupName { get; set; }
     public string ItemName { get; set; }
     public double Duration { get; set; }
+    public string weekday { get; set; }
+    public DateTime ShortDate { get; set; }
 }
 
 public class WeeklyDataViewModel
@@ -128,6 +130,12 @@ public class ReviewModel
 {
     public int Stars { get; set; }
     public string Email { get; set; }
+    public string Comments { get; set; }
+}
+
+public class ReviewRequest
+{
+    public int Stars { get; set; }
     public string Comments { get; set; }
 }
 

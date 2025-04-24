@@ -58,18 +58,87 @@ body {
 }
 
 
-/*.weekly-row {
-    background-color: #f0f0f0;
-    font-weight:bold;
+/* Weekly Totals Styling */
+#weeklyTotalsThis td, #weeklyTotalsThis th,
+#weeklyTotalsLast td, #weeklyTotalsLast th {
+    text-align: center;
 }
 
-.username-cell {
-    text-align:center;
+/* Reviews styling */
+#reviewsContainer {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 20px;
+}
+
+.review-item {
+    border-bottom: 1px solid #dee2e6;
+    padding: 15px 0;
+}
+
+.review-item:last-child {
+    border-bottom: none;
+}
+
+.review-stars {
+    color: #ffc107;
+    font-size: 1.1em;
+    letter-spacing: 2px;
+}
+
+.review-email {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.review-comment {
+    color: #212529;
+    font-size: 0.95em;
+    line-height: 1.4;
+    margin-top: 8px;
+}
+
+.no-reviews {
+    text-align: center;
+    color: #6c757d;
+    padding: 20px 0;
     font-style: italic;
 }
 
+/* Star Rating Input Styling */
+.star-rating {
+    display: flex;
+    gap: 5px;
+    font-size: 1.5em;
+}
 
-#weeklyTotalsThis td, #weeklyTotalsThis th,
-#weeklyTotalsLast td, #weeklyTotalsLast th {
-    text-align: center;*/
+.star-rating .star {
+    cursor: pointer;
+    color: #dee2e6;
+    transition: color 0.2s ease;
+}
+
+.star-rating .star.active,
+.star-rating .star:hover {
+    color: #ffc107;
+}
+
+/* Feedback Form Specific Styles */
+.reviews-section {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.reviews-section .review-item {
+    background-color: white;
+    border-radius: 0.25rem;
+    padding: 15px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.reviews-section .review-item:last-child {
+    margin-bottom: 0;
 }

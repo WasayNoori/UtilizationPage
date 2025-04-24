@@ -369,9 +369,20 @@ public class IndexModel : PageModel
         }
     }
 
-    public class ReviewRequest
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> OnGetReviewsAsync()
     {
-        public int Stars { get; set; }
-        public string Comments { get; set; }
+        try
+        {
+            var reviews = await _entryService.GetReviews();
+            return new JsonResult(new { success = true, data = reviews });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting reviews: {ex.Message}");
+            return new JsonResult(new { success = false, error = ex.Message });
+        }
     }
+
+  
 }

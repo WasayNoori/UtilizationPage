@@ -684,10 +684,12 @@ namespace UtilizationPage_ASP.Services
                                 var entry = new WeekendEntryViewModel
                                 {
                                     Date = reader.GetDateTime(reader.GetOrdinal("Date")),
+                                    weekday= reader.GetDateTime(reader.GetOrdinal("Date")).DayOfWeek.ToString(),
                                     BoardName = reader.GetString(reader.GetOrdinal("BoardName")),
                                     GroupName = reader.GetString(reader.GetOrdinal("GroupName")),
                                     ItemName = reader.GetString(reader.GetOrdinal("ItemName")),
                                     Duration = reader.GetDouble(reader.GetOrdinal("Duration"))
+                                    
                                 };
                                 weekendEntries.Add(entry);
                             }
@@ -1121,12 +1123,43 @@ namespace UtilizationPage_ASP.Services
 
         #endregion
       
-        public async  Task<List<ReviewModel>>GetReiews()
+        public async Task<List<ReviewModel>> GetReviews()
         {
-
-            //Select Stars,Comment from Review
-            return new List<ReviewModel>();
-
+            var reviews = new List<ReviewModel>();
+            try
+            {
+                _logger.LogInformation("Getting reviews");
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    using (var command = new SqlCommand("GetReviews", connection))
+                    {
+                        command.CommandType = System.Data.CommandType.StoredProcedure;
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                var review = new ReviewModel
+                                {
+                                    Stars = reader.GetInt32(reader.GetOrdinal("Stars")),
+                                   
+                                    Comments = !reader.IsDBNull(reader.GetOrdinal("Comment")) 
+                                        ? reader.GetString(reader.GetOrdinal("Comment")) 
+                                        : null
+                                };
+                                reviews.Add(review);
+                            }
+                        }
+                    }
+                }
+                _logger.LogInformation($"Retrieved {reviews.Count} reviews");
+                return reviews;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting reviews: {ex.Message}");
+                throw;
+            }
         }
 
         public async Task<double> GetAverageRating()
