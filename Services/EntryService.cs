@@ -1147,7 +1147,11 @@ namespace UtilizationPage_ASP.Services
                                         ? reader.GetString(reader.GetOrdinal("Comment")) 
                                         : null
                                 };
-                                reviews.Add(review);
+                                if(!string.IsNullOrEmpty(review.Comments))
+                                {
+                                    reviews.Add(review);
+                                }
+                         
                             }
                         }
                     }
