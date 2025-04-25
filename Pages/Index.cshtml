@@ -272,17 +272,27 @@
                         <!-- Time Breakdown Card -->
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(to right, #2c3e50, #3498db); color: white; padding: 15px;">
-                                <h5 class="mb-0" style="font-size: 24px; font-weight: 500;">Time Distribution</h5>
-                                <select id="teamFilter" class="form-select form-select-sm" style="width: auto;">
-                                    <option value="All">All Teams</option>
-                                    <option value="Tech Sales">Tech Sales</option>
-                                    <option value="Services">Services</option>
-                                </select>
-                            </div>
+                                <h5 class="mb-0" style="font-size: 24px; font-weight: 500;">Time Distribution (Year to Date)</h5>
+
+
+                                <div style="display: flex; align-items: center;">
+
+                                    <div style="margin-right:auto;padding-right:5px" >
+                                        <label for="teamFilter" class="form-label mb-0" style="font-size: 16px; font-weight: 500;">Select Team</label>
+                                    </div>
+                                    <select id="teamFilter" class="form-select form-select-sm" style="width: auto;">
+                                        <option value="All">All Teams</option>
+                                        <option value="Tech Sales">Tech Sales</option>
+                                        <option value="Services">Services</option>
+                                    </select>
+                                </div>
+                                </div>
+                                   
+
                             <div class="card-body">
                                 <div class="table-responsive">
                                     <table class="table table-hover">
-                                        <thead>
+                                        <thead>7
                                             <tr style="background-color: #f8f9fa;">
                                                 <th>Category</th>
                                                 <th>Hours</th>
