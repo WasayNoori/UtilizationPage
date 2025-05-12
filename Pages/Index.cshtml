@@ -612,19 +612,20 @@
         function loadData(forceRefresh = false, isMonthly = false) {
             var overlay = document.getElementById('loadingOverlay');
             const filterValue = document.getElementById('timeFilter').value;
-            
-            console.log('Loading data with:', { filterValue, currentUserEmail, forceRefresh, isMonthly });
-            
-            // Check cache first
             const cacheType = isMonthly ? 'monthly' : 'regular';
-            if (!forceRefresh && isCacheValid(filterValue, cacheType)) {
-                console.log('Using cached data for ' + filterValue);
+            const cacheKey = `${filterValue}_${currentUserEmail}`;
+
+            console.log('Loading data with:', { filterValue, currentUserEmail, forceRefresh, isMonthly });
+
+            // Check cache first
+            if (!forceRefresh && isCacheValid(cacheKey, cacheType)) {
+                console.log('Using cached data for ' + cacheKey);
                 const cache = cacheType === 'monthly' ? dataCache.monthlyData : dataCache.entries;
-                console.log('Cached data structure:', JSON.stringify(cache[filterValue].data, null, 2));
-                table.setData(cache[filterValue].data);
-                
+                console.log('Cached data structure:', JSON.stringify(cache[cacheKey].data, null, 2));
+                table.setData(cache[cacheKey].data);
+
                 // Calculate and display total time from cache
-                const totalHours = cache[filterValue].data.reduce((total, board) => {
+                const totalHours = cache[cacheKey].data.reduce((total, board) => {
                     return total + parseHours(board.hours);
                 }, 0);
                 document.getElementById('periodTotalTime').textContent = formatTotalHours(totalHours);
@@ -633,7 +634,7 @@
 
             overlay.style.display = 'block';
             document.getElementById('periodTotalTime').textContent = 'Loading...';
-            
+
             fetch(`/Index?handler=Entries&filter=${encodeURIComponent(filterValue)}&userEmail=${encodeURIComponent(currentUserEmail)}`)
                 .then(response => response.json())
                 .then(result => {
@@ -643,7 +644,7 @@
                         document.getElementById('periodTotalTime').textContent = 'Error';
                         return;
                     }
-                    
+
                     // Calculate total hours and percentages for boards
                     const data = result.data;
                     const totalHours = data.reduce((total, board) => {
@@ -659,20 +660,20 @@
                         const hours = parseHours(board.hours);
                         board.percentage = Math.round((hours / totalHours) * 100 * 10) / 10;
                     });
-                    
+
                     // Store in appropriate cache
                     if (isMonthly) {
-                        dataCache.monthlyData[filterValue] = {
+                        dataCache.monthlyData[cacheKey] = {
                             data: data,
                             timestamp: new Date().getTime()
                         };
                     } else {
-                        dataCache.entries[filterValue] = {
+                        dataCache.entries[cacheKey] = {
                             data: data,
                             timestamp: new Date().getTime()
                         };
                     }
-                    
+
                     table.setData(data);
                     overlay.style.display = 'none';
                 })
