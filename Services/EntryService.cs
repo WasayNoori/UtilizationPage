@@ -1141,16 +1141,20 @@ namespace UtilizationPage_ASP.Services
                             {
                                 var review = new ReviewModel
                                 {
+                                    Email = reader.GetString(reader.GetOrdinal("user_email")),
+
                                     Stars = reader.GetInt32(reader.GetOrdinal("Stars")),
                                    
                                     Comments = !reader.IsDBNull(reader.GetOrdinal("Comment")) 
                                         ? reader.GetString(reader.GetOrdinal("Comment")) 
-                                        : null
+                                        : null,
+
+                                    Date = reader.GetDateTime(reader.GetOrdinal("review_date")).Date
                                 };
-                                if(!string.IsNullOrEmpty(review.Comments))
-                                {
+                                //if(!string.IsNullOrEmpty(review.Comments))
+                                //{
                                     reviews.Add(review);
-                                }
+                                //}
                          
                             }
                         }

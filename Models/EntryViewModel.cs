@@ -131,6 +131,7 @@ public class ReviewModel
     public int Stars { get; set; }
     public string Email { get; set; }
     public string Comments { get; set; }
+    public DateTime Date { get; set; }
 }
 
 public class ReviewRequest

@@ -1,0 +1,36 @@
+﻿@page
+@model ReviewDashboardModel
+@{
+    ViewData["Title"] = "Reviews Dashboard";
+}
+
+<h1> Reviews </h1>
+
+@if (Model.Reviews != null && Model.Reviews.Count > 0)
+{
+    <table class = "table">
+        <thread>
+            <tr>
+                <th>Reviewer Email</th>
+                <th>Stars</th>
+                <th>Comments </th>
+                <th>Date</th> 
+            </tr>
+        </thread>
+        <tbody> 
+            @foreach (var review in Model.Reviews)
+            {
+                <tr>
+                    <td>@review.Email</td>
+                    <td>@review.Stars</td>
+                    <td>@review.Comments</td>
+                    <td>@review.Date.ToString("MM/dd/yyyy")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p> no reviews found </p>
+}
