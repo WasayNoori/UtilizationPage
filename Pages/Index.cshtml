@@ -93,7 +93,7 @@
             <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab" aria-controls="profile" aria-selected="false">Profile</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link feedback-tab-button" id="feedback-tab" data-bs-toggle="tab" data-bs-target="#feedback" type="button" role="tab" aria-controls="feedback" aria-selected="false">
+            <button class="nav-link feedback-tab-button" id="feedback-tab" data-bs-toggle="tab" data-bs-target="#feedback" type="button" role="tab" aria-controls="feedback" aria-selected="false"> 
                 <i class="fas fa-star me-1"></i>Feedback
             </button>
         </li>
@@ -413,12 +413,12 @@
     <script>
         $(document).ready(function () {
             console.log("Page initialization started");
-            loadUsers();
+            // loadUsers();
             loadMVPData();
             // Load weekly data after a short delay to ensure user data is loaded
             setTimeout(() => {
                 console.log("Loading weekly data after delay");
-                loadWeeklyData();
+                // loadWeeklyData();
             }, 1000);
             $('#userSelect').change(onUserChange);
             $('#timeFilter').change(onTimeFilterChange);
@@ -1441,7 +1441,7 @@
     }
 
     .feedback-tab-button {
-        display: none !important;
+        display: none !important; 
     }
 </style>
 

@@ -10,7 +10,9 @@ using System.Threading.Tasks;
 using UtilizationPage_ASP.Services;
 using System.Security.Claims;
 using Microsoft.Extensions.Configuration;
-using System.Data.SqlClient;
+//using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
+
 
 
 [Authorize]
