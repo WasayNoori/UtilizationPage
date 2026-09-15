@@ -1,0 +1,395 @@
+@page
+@model SupportUtilizationModel
+@using System.Security.Claims
+@{
+    ViewData["Title"] = "Support Utilization Data";
+}
+@Html.AntiForgeryToken()
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <div style="font-family: 'Poppins', sans-serif; font-weight: 300; color: #0d6efd; font-size: 1.1rem; margin-bottom: 5px;">Hawk Ridge Systems Engineering</div>
+            <div class="d-flex align-items-center">
+                <h1 class="page-title mb-0">HRS Tech Support Utilization</h1>
+                <button id="refreshButton" class="btn btn-link btn-sm p-0 ms-2" style="color: #0d6efd; font-size: 1.2rem;" title="Reload the schedule">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="d-flex flex-column">
+                <div class="fs-4 text-dark">
+                    Hello <span id="userGreeting" class="fw-bold">@Model.UserName</span>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex flex-column align-items-end">
+            <div class="d-flex align-items-center gap-3">
+                <div class="time-filter-container" style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                    <label for="timeFilter" class="form-label me-2" style="font-weight: 500; color: #0d6efd;">Time Period:</label>
+                    <select id="timeFilter" class="form-select" style="width: auto; min-width: 200px; border-color: #0d6efd;" onchange="handleTimeFilterChange(this.value)">
+                        <optgroup label="Recent Periods">
+                            <option value="Today">Today</option>
+                            <option value="Yesterday">Yesterday</option>
+                            <option value="TwoWeeksAgo">Last 2 Weeks</option>
+                            <option value="ThisWeek">This Week</option>
+                            <option value="LastWeek">Last Week</option>
+                        </optgroup>
+                        <optgroup label="Monthly View">
+                            @{
+                                var currentMonth = DateTime.Now.Month;
+                                var currentYear = DateTime.Now.Year;
+
+                                for (int month = 1; month <= 12; month++) {
+                                    var date = new DateTime(currentYear, month, 1);
+                                    var monthName = date.ToString("MMMM");
+                                    var value = $"Month_{currentYear}_{month:00}";
+                                    var isFutureMonth = month > currentMonth;
+
+                                    if (isFutureMonth) {
+                                        <option value="@value" disabled style="color: #aaa;">@monthName</option>
+                                    } else {
+                                        <option value="@value">@monthName</option>
+                                    }
+                                }
+                            }
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="wfm-tab" data-bs-toggle="tab" data-bs-target="#wfm" type="button" role="tab" aria-controls="wfm" aria-selected="true">WFM Schedule</button>
+        </li>
+    </ul>
+    <div class="tab-content" id="myTabContent">
+        <div class="tab-pane fade show active" id="wfm" role="tabpanel" aria-labelledby="wfm-tab">
+            <div style="position: relative; padding-top: 15px;">
+                <div id="wfmLoadingOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 1000; text-align: center; padding-top: 200px;">
+                    Loading schedule...
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 style="color: #0d6efd; margin-bottom: 5px;">Zoom Workforce Management Schedule</h5>
+                        <div id="wfmLastSync" style="font-size: 0.75rem; color: #6c757d;">Checking last sync...</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="time-filter-container" style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                            <label for="wfmGroupBy" class="form-label me-2" style="font-weight: 500; color: #0d6efd;">Show:</label>
+                            <select id="wfmGroupBy" class="form-select" style="width: auto; min-width: 180px; border-color: #0d6efd;">
+                                <option value="agent">By agent</option>
+                                <option value="group">By pod / group</option>
+                            </select>
+                        </div>
+                        <div class="time-filter-container" style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                            <label for="wfmActivity" class="form-label me-2" style="font-weight: 500; color: #0d6efd;">Activity:</label>
+                            <select id="wfmActivity" class="form-select" style="width: auto; min-width: 200px; border-color: #0d6efd;">
+                                <option value="all">All activities</option>
+                            </select>
+                        </div>
+                        <button id="wfmSyncButton" class="btn btn-primary" type="button">
+                            <span id="wfmSyncSpinner" class="spinner-border spinner-border-sm me-1" role="status" style="display: none;">
+                                <span class="visually-hidden">Syncing...</span>
+                            </span>
+                            <i class="fas fa-cloud-download-alt me-1"></i>Sync Zoom Schedule
+                        </button>
+                    </div>
+                </div>
+
+                <div id="wfmSyncAlert" class="alert" style="display: none;"></div>
+
+                <div style="float: left; margin-bottom: 10px;">
+                    <button id="wfmExpandAll" class="btn btn-outline-secondary btn-sm" type="button">
+                        <i class="fas fa-plus-square me-1"></i>Expand all
+                    </button>
+                    <button id="wfmCollapseAll" class="btn btn-outline-secondary btn-sm ms-1" type="button">
+                        <i class="fas fa-minus-square me-1"></i>Collapse all
+                    </button>
+                </div>
+
+                <div style="text-align: right; margin-bottom: 10px; padding: 5px 10px; background-color: #f8f9fa; border-radius: 5px; display: inline-block; float: right;">
+                    <span style="font-weight: 500; color: #0d6efd;">Scheduled:</span>
+                    <span id="wfmTotalScheduled" style="margin-left: 5px; font-weight: bold;">Loading...</span>
+                    <span style="font-weight: 500; color: #0d6efd; margin-left: 15px;">Paid:</span>
+                    <span id="wfmTotalPaid" style="margin-left: 5px; font-weight: bold;">Loading...</span>
+                </div>
+                <div style="clear: both;"></div>
+
+                <div id="wfmScheduleTable"></div>
+
+                <div id="wfmNoDataMessage" style="display: none; text-align: center; padding: 20px; color: #6c757d;">
+                    No schedule data for this period. Use Sync Zoom Schedule to pull it from Zoom.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.0.7/js/tabulator.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.0.7/css/tabulator.min.css">
+
+    <script>
+        var wfmScheduleTable = null;
+        var wfmTableReady = null;
+
+        function formatMinutes(minutes) {
+            if (!minutes) return '0m';
+            const hours = Math.floor(minutes / 60);
+            const remainder = minutes % 60;
+            if (hours === 0) return `${remainder}m`;
+            return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
+        }
+
+        function currentGroupBy() {
+            return document.getElementById('wfmGroupBy').value;
+        }
+
+        // Tabulator builds asynchronously, so setData has to wait for tableBuilt - called any
+        // earlier the data is silently dropped and the table renders empty.
+        function initWfmTable() {
+            if (wfmTableReady) return wfmTableReady;
+
+            wfmScheduleTable = new Tabulator("#wfmScheduleTable", {
+                layout: "fitColumns",
+                dataTree: true,
+                dataTreeStartExpanded: false,
+                dataTreeChildField: "children",
+                height: "600px",
+                data: [],
+                columns: [
+                    { title: "Agent / Date / Activity", field: "agent", headerSort: false, widthGrow: 3 },
+                    { title: "Type", field: "activityType", headerSort: false },
+                    { title: "Time", field: "timeRange", headerSort: false },
+                    { title: "Scheduled", field: "scheduled", hozAlign: "left" },
+                    { title: "Paid", field: "paid", hozAlign: "left" },
+                    { title: "Group", field: "schedulingGroup", headerSort: false }
+                ]
+            });
+
+            wfmTableReady = new Promise(resolve => {
+                wfmScheduleTable.on("tableBuilt", () => resolve(wfmScheduleTable));
+            });
+
+            return wfmTableReady;
+        }
+
+        // The first column holds a different level of the tree in each mode, so relabel it.
+        // This writes the header text straight into the DOM on purpose: Tabulator's
+        // updateColumnDefinition rebuilds the column, and rebuilding the tree column strips every
+        // expand/collapse control off the table.
+        function setTreeColumnTitle(groupBy) {
+            const title = groupBy === 'group'
+                ? 'Pod / Agent / Date / Activity'
+                : 'Agent / Date / Activity';
+
+            const titleElement = document.querySelector('#wfmScheduleTable .tabulator-col[tabulator-field="agent"] .tabulator-col-title');
+            if (titleElement) {
+                titleElement.textContent = title;
+            }
+        }
+
+        // treeExpand only opens one level, so walk the whole branch.
+        function expandBranch(row) {
+            row.treeExpand();
+            row.getTreeChildren().forEach(expandBranch);
+        }
+
+        function collapseBranch(row) {
+            row.getTreeChildren().forEach(collapseBranch);
+            row.treeCollapse();
+        }
+
+        // Rebuilt after every load so the list tracks the selected period. The current choice is
+        // kept when it is still available, otherwise it falls back to showing everything.
+        function populateActivityDropdown(activityNames, activityTypes) {
+            const select = document.getElementById('wfmActivity');
+            const previous = select.value;
+
+            select.innerHTML = '';
+            select.appendChild(new Option('All activities', 'all'));
+
+            if (activityTypes && activityTypes.length) {
+                const typeGroup = document.createElement('optgroup');
+                typeGroup.label = 'By type';
+                activityTypes.forEach(type => typeGroup.appendChild(new Option(type, `type:${type}`)));
+                select.appendChild(typeGroup);
+            }
+
+            if (activityNames && activityNames.length) {
+                const nameGroup = document.createElement('optgroup');
+                nameGroup.label = 'By activity';
+                activityNames.forEach(name => nameGroup.appendChild(new Option(name, `name:${name}`)));
+                select.appendChild(nameGroup);
+            }
+
+            const stillAvailable = [...select.options].some(option => option.value === previous);
+            select.value = stillAvailable ? previous : 'all';
+        }
+
+        function loadZoomSchedule() {
+            const overlay = document.getElementById('wfmLoadingOverlay');
+            const filterValue = document.getElementById('timeFilter').value;
+            const groupBy = currentGroupBy();
+            const activity = document.getElementById('wfmActivity').value || 'all';
+
+            overlay.style.display = 'block';
+            document.getElementById('wfmTotalScheduled').textContent = 'Loading...';
+            document.getElementById('wfmTotalPaid').textContent = 'Loading...';
+
+            fetch(`?handler=ZoomSchedule&filter=${encodeURIComponent(filterValue)}&groupBy=${encodeURIComponent(groupBy)}&activity=${encodeURIComponent(activity)}`)
+                .then(response => response.json())
+                .then(result => {
+                    overlay.style.display = 'none';
+
+                    if (!result.success) {
+                        console.error('Error loading Zoom schedule:', result.error);
+                        document.getElementById('wfmTotalScheduled').textContent = 'Error';
+                        document.getElementById('wfmTotalPaid').textContent = 'Error';
+                        return;
+                    }
+
+                    populateActivityDropdown(result.activityNames, result.activityTypes);
+
+                    const data = result.data || [];
+                    const noDataMessage = document.getElementById('wfmNoDataMessage');
+                    const tableElement = document.getElementById('wfmScheduleTable');
+
+                    if (data.length === 0) {
+                        noDataMessage.style.display = 'block';
+                        tableElement.style.display = 'none';
+                        document.getElementById('wfmTotalScheduled').textContent = '0m';
+                        document.getElementById('wfmTotalPaid').textContent = '0m';
+                        if (wfmTableReady) wfmTableReady.then(table => table.clearData());
+                        return;
+                    }
+
+                    noDataMessage.style.display = 'none';
+                    tableElement.style.display = 'block';
+
+                    // Top level rows are whole agents or whole pods depending on the mode, so
+                    // either way they sum to the period total exactly once.
+                    const totalScheduled = data.reduce((sum, row) => sum + (row.scheduledMinutes || 0), 0);
+                    const totalPaid = data.reduce((sum, row) => sum + (row.paidMinutes || 0), 0);
+                    document.getElementById('wfmTotalScheduled').textContent = formatMinutes(totalScheduled);
+                    document.getElementById('wfmTotalPaid').textContent = formatMinutes(totalPaid);
+
+                    initWfmTable().then(table => {
+                        table.setData(data);
+                        // The container may have been hidden when the table was built, which leaves
+                        // the rows without a laid out height until it is redrawn.
+                        table.redraw(true);
+                        setTreeColumnTitle(groupBy);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading Zoom schedule:', error);
+                    overlay.style.display = 'none';
+                    document.getElementById('wfmTotalScheduled').textContent = 'Error';
+                    document.getElementById('wfmTotalPaid').textContent = 'Error';
+                });
+        }
+
+        function formatSyncTime(timestamp) {
+            // Stored in UTC; append 'Z' so it is not read as local, then render in Pacific.
+            const syncTime = new Date(timestamp + 'Z');
+            const timeStr = syncTime.toLocaleString('en-US', {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric',
+                timeZone: 'America/Los_Angeles', hour12: true
+            });
+            return `Last synced ${timeStr} (Pacific)`;
+        }
+
+        function loadZoomLastSync() {
+            fetch('?handler=ZoomLastSync')
+                .then(response => response.json())
+                .then(result => {
+                    document.getElementById('wfmLastSync').textContent = result.success
+                        ? formatSyncTime(result.timestamp)
+                        : 'Never synced';
+                })
+                .catch(error => {
+                    console.error('Error loading last sync time:', error);
+                    document.getElementById('wfmLastSync').textContent = 'Last sync time unavailable';
+                });
+        }
+
+        function syncZoomSchedule() {
+            const button = document.getElementById('wfmSyncButton');
+            const spinner = document.getElementById('wfmSyncSpinner');
+            const alertBox = document.getElementById('wfmSyncAlert');
+
+            button.disabled = true;
+            spinner.style.display = 'inline-block';
+            alertBox.style.display = 'none';
+
+            fetch('?handler=SyncZoomSchedule', {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                }
+            })
+                .then(response => response.json())
+                .then(result => {
+                    alertBox.className = result.success && !result.hasErrors ? 'alert alert-success' : 'alert alert-warning';
+                    alertBox.textContent = result.message || 'Sync finished.';
+                    alertBox.style.display = 'block';
+
+                    if (result.success) {
+                        loadZoomSchedule();
+                        loadZoomLastSync();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error syncing Zoom schedule:', error);
+                    alertBox.className = 'alert alert-danger';
+                    alertBox.textContent = 'The sync request failed. Check that the Zoom REST API is running.';
+                    alertBox.style.display = 'block';
+                })
+                .finally(() => {
+                    button.disabled = false;
+                    spinner.style.display = 'none';
+                });
+        }
+
+        function handleTimeFilterChange(value) {
+            // Future months are rendered disabled, but guard the selection anyway.
+            const select = document.getElementById('timeFilter');
+            const selectedOption = select.options[select.selectedIndex];
+
+            if (selectedOption.disabled) {
+                select.value = select.dataset.lastValue || 'ThisWeek';
+                return;
+            }
+
+            select.dataset.lastValue = value;
+            loadZoomSchedule();
+        }
+
+        document.getElementById('wfmSyncButton').addEventListener('click', syncZoomSchedule);
+        document.getElementById('wfmGroupBy').addEventListener('change', loadZoomSchedule);
+        document.getElementById('wfmActivity').addEventListener('change', loadZoomSchedule);
+        document.getElementById('refreshButton').addEventListener('click', () => {
+            loadZoomSchedule();
+            loadZoomLastSync();
+        });
+
+        document.getElementById('wfmExpandAll').addEventListener('click', () => {
+            if (!wfmTableReady) return;
+            wfmTableReady.then(table => table.getRows().forEach(expandBranch));
+        });
+
+        document.getElementById('wfmCollapseAll').addEventListener('click', () => {
+            if (!wfmTableReady) return;
+            wfmTableReady.then(table => table.getRows().forEach(collapseBranch));
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadZoomLastSync();
+            loadZoomSchedule();
+        });
+    </script>
+</div>

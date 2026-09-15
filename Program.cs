@@ -60,6 +60,8 @@ else
 
 builder.Services.AddRazorPages().AddMicrosoftIdentityUI();
 builder.Services.AddScoped<EntryService>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ZoomScheduleService>();
 builder.Logging.AddAzureWebAppDiagnostics();
 
 // Add session support
