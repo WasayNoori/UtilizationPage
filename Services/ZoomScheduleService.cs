@@ -25,12 +25,15 @@ namespace UtilizationPage_ASP.Services
         private readonly ILogger<ZoomScheduleService> _logger;
         private readonly IConfiguration _configuration;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ZendeskMetricsService _zendeskMetricsService;
 
-        public ZoomScheduleService(IConfiguration configuration, ILogger<ZoomScheduleService> logger, IHttpClientFactory httpClientFactory)
+        public ZoomScheduleService(IConfiguration configuration, ILogger<ZoomScheduleService> logger,
+            IHttpClientFactory httpClientFactory, ZendeskMetricsService zendeskMetricsService)
         {
             _configuration = configuration;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _zendeskMetricsService = zendeskMetricsService;
 
             var baseConnectionString = configuration.GetConnectionString("ZoomConnection");
             if (string.IsNullOrEmpty(baseConnectionString))
@@ -110,10 +113,15 @@ namespace UtilizationPage_ASP.Services
 
             var filtered = ApplyActivityFilter(entries, activity, out var activityFilterApplied);
 
+            // % To Target is a monthly figure, so a period that straddles a boundary has to pick
+            // one month. The month the period ends in is what the column header names.
+            var metrics = await _zendeskMetricsService.GetAgentMetricsAsync(endDate.Year, endDate.Month);
+            result.MetricsMonth = endDate.ToString("MMM");
+
             var byPod = string.Equals(groupBy, "group", StringComparison.OrdinalIgnoreCase);
             result.Rows = byPod
-                ? BuildPodNodes(filtered, activityFilterApplied)
-                : BuildAgentNodes(filtered, activityFilterApplied);
+                ? BuildPodNodes(filtered, activityFilterApplied, metrics)
+                : BuildAgentNodes(filtered, activityFilterApplied, metrics);
 
             _logger.LogInformation($"Formatted {result.Rows.Count} top level rows, grouped by {(byPod ? "pod" : "agent")}, activity filter '{activity ?? "all"}'");
             return result;
@@ -167,7 +175,8 @@ namespace UtilizationPage_ASP.Services
         ///     Rolls the agents up under their Zoom scheduling group - the pod names already shown
         ///     in the Group column when the whole team is listed.
         /// </summary>
-        private List<ZoomScheduleRowViewModel> BuildPodNodes(List<ZoomScheduleEntry> entries, bool useActivityTotals)
+        private List<ZoomScheduleRowViewModel> BuildPodNodes(List<ZoomScheduleEntry> entries, bool useActivityTotals,
+            Dictionary<string, ZendeskAgentMetric> metrics)
         {
             return entries
                 .GroupBy(e => string.IsNullOrWhiteSpace(e.SchedulingGroupName) ? UngroupedLabel : e.SchedulingGroupName)
@@ -176,7 +185,7 @@ namespace UtilizationPage_ASP.Services
                 .ThenBy(pod => pod.Key)
                 .Select(pod =>
                 {
-                    var agents = BuildAgentNodes(pod.ToList(), useActivityTotals);
+                    var agents = BuildAgentNodes(pod.ToList(), useActivityTotals, metrics);
                     var podScheduled = agents.Sum(a => a.ScheduledMinutes);
                     var podPaid = agents.Sum(a => a.PaidMinutes);
 
@@ -201,7 +210,8 @@ namespace UtilizationPage_ASP.Services
         ///     so once the view is narrowed to one activity they would overstate what is on screen -
         ///     add the visible activities up instead.
         /// </param>
-        private List<ZoomScheduleRowViewModel> BuildAgentNodes(List<ZoomScheduleEntry> entries, bool useActivityTotals)
+        private List<ZoomScheduleRowViewModel> BuildAgentNodes(List<ZoomScheduleEntry> entries, bool useActivityTotals,
+            Dictionary<string, ZendeskAgentMetric> metrics)
         {
             return entries
                 .GroupBy(e => new { e.UserId, e.DisplayName })
@@ -263,6 +273,18 @@ namespace UtilizationPage_ASP.Services
                     var agentScheduled = dayNodes.Sum(d => d.ScheduledMinutes);
                     var agentPaid = dayNodes.Sum(d => d.PaidMinutes);
 
+                    // Joined on email rather than display name: Zendesk and Zoom do not always
+                    // spell an agent the same way.
+                    var agentEmail = agent.First().UserEmail;
+                    string percentToTarget = null;
+                    if (!string.IsNullOrEmpty(agentEmail)
+                        && metrics != null
+                        && metrics.TryGetValue(agentEmail, out var metric)
+                        && metric.PercentToTarget.HasValue)
+                    {
+                        percentToTarget = (metric.PercentToTarget.Value * 100m).ToString("0.0") + "%";
+                    }
+
                     return new ZoomScheduleRowViewModel
                     {
                         Agent = agent.Key.DisplayName,
@@ -271,6 +293,7 @@ namespace UtilizationPage_ASP.Services
                         ScheduledMinutes = agentScheduled,
                         PaidMinutes = agentPaid,
                         SchedulingGroup = agent.First().SchedulingGroupName,
+                        PercentToTarget = percentToTarget,
                         Children = dayNodes
                     };
                 })

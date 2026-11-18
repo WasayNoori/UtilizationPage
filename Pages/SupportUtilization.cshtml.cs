@@ -20,16 +20,31 @@ public class SupportUtilizationModel : PageModel
 {
     private readonly EntryService _entryService;
     private readonly ZoomScheduleService _zoomScheduleService;
+    private readonly ZendeskImportService _zendeskImportService;
+    private readonly ZendeskMetricsService _zendeskMetricsService;
+    private readonly IAuthorizationService _authorizationService;
     private readonly ILogger<IndexModel> _logger;
     private readonly IConfiguration _configuration;
     public WeeklyHoursSummary WeeklyTotals { get; set; }
     public string UserName { get; set; }
 
+    /// <summary>
+    ///     Whether the signed-in user may import Zendesk metrics. Drives whether the import
+    ///     control renders; the handler re-checks the same policy, because hiding a control is
+    ///     not a restriction.
+    /// </summary>
+    public bool CanImportMetrics { get; set; }
+
     public SupportUtilizationModel(EntryService entryService, ZoomScheduleService zoomScheduleService,
+        ZendeskImportService zendeskImportService, ZendeskMetricsService zendeskMetricsService,
+        IAuthorizationService authorizationService,
         ILogger<IndexModel> logger, IConfiguration configuration)
     {
         _entryService = entryService;
         _zoomScheduleService = zoomScheduleService;
+        _zendeskImportService = zendeskImportService;
+        _zendeskMetricsService = zendeskMetricsService;
+        _authorizationService = authorizationService;
         _logger = logger;
         _configuration = configuration;
     }
@@ -47,6 +62,14 @@ public class SupportUtilizationModel : PageModel
             _logger.LogError($"Error getting user info: {ex.Message}");
             UserName = "User";
         }
+
+        CanImportMetrics = await IsImportAllowedAsync();
+    }
+
+    private async Task<bool> IsImportAllowedAsync()
+    {
+        var result = await _authorizationService.AuthorizeAsync(User, "CanImportMetrics");
+        return result.Succeeded;
     }
 
     private string GetDevelopmentUserEmail() => _configuration["TestUser:Email"] ?? "wasay@hawkridgesys.com";
@@ -404,7 +427,8 @@ public class SupportUtilizationModel : PageModel
                 success = true,
                 data = schedule.Rows,
                 activityNames = schedule.ActivityNames,
-                activityTypes = schedule.ActivityTypes
+                activityTypes = schedule.ActivityTypes,
+                metricsMonth = schedule.MetricsMonth
             });
         }
         catch (Exception ex)
@@ -451,6 +475,74 @@ public class SupportUtilizationModel : PageModel
         {
             _logger.LogError($"Error running the Zoom schedule sync: {ex.Message}");
             return new JsonResult(new { success = false, message = "Error running the schedule sync" });
+        }
+    }
+
+    /// <summary>
+    ///     Imports a Zendesk Explore CSV export.
+    ///
+    ///     The policy is checked here rather than with an [Authorize] attribute because Razor
+    ///     Pages ignores authorization attributes on individual handler methods - only the page
+    ///     model is inspected. Hiding the button in the view is cosmetic; this check is the
+    ///     actual control.
+    /// </summary>
+    public async Task<IActionResult> OnPostImportZendeskAsync(IFormFile csvFile, int year, int month)
+    {
+        if (!await IsImportAllowedAsync())
+        {
+            _logger.LogWarning("Rejected a Zendesk import attempt from {Email}",
+                User.FindFirstValue(ClaimTypes.Email) ?? "unknown");
+            return new JsonResult(new { success = false, message = "You are not permitted to import metrics." })
+            {
+                StatusCode = 403
+            };
+        }
+
+        const long maxUploadBytes = 10 * 1024 * 1024;
+
+        if (csvFile == null || csvFile.Length == 0)
+        {
+            return new JsonResult(new { success = false, message = "Choose a CSV file to import." });
+        }
+
+        if (csvFile.Length > maxUploadBytes)
+        {
+            return new JsonResult(new { success = false, message = "That file is larger than 10 MB - it is probably not an Explore export." });
+        }
+
+        if (month < 1 || month > 12)
+        {
+            return new JsonResult(new { success = false, message = "Select a valid month." });
+        }
+
+        try
+        {
+            var importedBy = User.FindFirstValue(ClaimTypes.Email)
+                             ?? User.FindFirstValue("preferred_username")
+                             ?? "unknown";
+
+            ZendeskImportResult result;
+            using (var stream = csvFile.OpenReadStream())
+            {
+                result = await _zendeskImportService.ImportAsync(stream, csvFile.FileName, year, month, importedBy);
+            }
+
+            return new JsonResult(new
+            {
+                success = result.Success,
+                fileKind = result.FileKind,
+                rowsParsed = result.RowsParsed,
+                rowsUpserted = result.RowsUpserted,
+                monthsCovered = result.MonthsCovered,
+                unmatchedAgents = result.UnmatchedAgents,
+                nothingChanged = result.NothingChanged,
+                message = result.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Zendesk import failed");
+            return new JsonResult(new { success = false, message = $"Import failed: {ex.Message}" });
         }
     }
 

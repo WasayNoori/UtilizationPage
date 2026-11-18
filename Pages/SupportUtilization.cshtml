@@ -92,16 +92,56 @@
                                 <option value="all">All activities</option>
                             </select>
                         </div>
-                        <button id="wfmSyncButton" class="btn btn-primary" type="button">
-                            <span id="wfmSyncSpinner" class="spinner-border spinner-border-sm me-1" role="status" style="display: none;">
-                                <span class="visually-hidden">Syncing...</span>
-                            </span>
-                            <i class="fas fa-cloud-download-alt me-1"></i>Sync Zoom Schedule
-                        </button>
                     </div>
                 </div>
 
-                <div id="wfmSyncAlert" class="alert" style="display: none;"></div>
+@if (Model.CanImportMetrics)
+{
+                <div style="background-color: #f8f9fa; padding: 12px 15px; border-radius: 5px; border: 1px solid #dee2e6; margin-bottom: 15px;">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span style="font-weight: 500; color: #0d6efd;">
+                            <i class="fas fa-file-csv me-1"></i>Import Zendesk metrics:
+                        </span>
+                        <input type="file" id="zendeskFile" accept=".csv" class="form-control form-control-sm" style="width: auto;" />
+                        <select id="zendeskYear" class="form-select form-select-sm" style="width: auto;">
+                            @{
+                                var thisYear = DateTime.Now.Year;
+                                for (int y = thisYear; y >= thisYear - 3; y--)
+                                {
+                                    <option value="@y">@y</option>
+                                }
+                            }
+                        </select>
+                        <select id="zendeskMonth" class="form-select form-select-sm" style="width: auto;">
+                            @{
+                                var defaultMonth = DateTime.Now.AddMonths(-1).Month;
+                                for (int m = 1; m <= 12; m++)
+                                {
+                                    var label = new DateTime(2000, m, 1).ToString("MMMM");
+                                    if (m == defaultMonth)
+                                    {
+                                        <option value="@m" selected>@label</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@m">@label</option>
+                                    }
+                                }
+                            }
+                        </select>
+                        <button id="zendeskImportButton" class="btn btn-outline-primary btn-sm" type="button">
+                            <span id="zendeskImportSpinner" class="spinner-border spinner-border-sm me-1" role="status" style="display: none;">
+                                <span class="visually-hidden">Importing...</span>
+                            </span>
+                            Import
+                        </button>
+                    </div>
+                    <div style="font-size: 0.75rem; color: #6c757d; margin-top: 6px;">
+                        The month applies to the Agent Table export only - the By-Month export carries its own months.
+                    </div>
+                    <div id="zendeskImportAlert" class="alert mt-2 mb-0" style="display: none;"></div>
+                </div>
+}
 
                 <div style="float: left; margin-bottom: 10px;">
                     <button id="wfmExpandAll" class="btn btn-outline-secondary btn-sm" type="button">
@@ -123,7 +163,7 @@
                 <div id="wfmScheduleTable"></div>
 
                 <div id="wfmNoDataMessage" style="display: none; text-align: center; padding: 20px; color: #6c757d;">
-                    No schedule data for this period. Use Sync Zoom Schedule to pull it from Zoom.
+                    No schedule data for this period. The schedule syncs from Zoom once a day.
                 </div>
             </div>
         </div>
@@ -166,7 +206,8 @@
                     { title: "Time", field: "timeRange", headerSort: false },
                     { title: "Scheduled", field: "scheduled", hozAlign: "left" },
                     { title: "Paid", field: "paid", hozAlign: "left" },
-                    { title: "Group", field: "schedulingGroup", headerSort: false }
+                    { title: "Group", field: "schedulingGroup", headerSort: false },
+                    { title: "% To Target", field: "percentToTarget", hozAlign: "right" }
                 ]
             });
 
@@ -189,6 +230,15 @@
             const titleElement = document.querySelector('#wfmScheduleTable .tabulator-col[tabulator-field="agent"] .tabulator-col-title');
             if (titleElement) {
                 titleElement.textContent = title;
+            }
+        }
+
+        // % To Target is monthly while the table's period can span months, so name the month in
+        // the header rather than leaving it ambiguous.
+        function setMetricsColumnTitle(monthLabel) {
+            const titleElement = document.querySelector('#wfmScheduleTable .tabulator-col[tabulator-field="percentToTarget"] .tabulator-col-title');
+            if (titleElement) {
+                titleElement.textContent = monthLabel ? `% To Target (${monthLabel})` : '% To Target';
             }
         }
 
@@ -283,6 +333,7 @@
                         // the rows without a laid out height until it is redrawn.
                         table.redraw(true);
                         setTreeColumnTitle(groupBy);
+                        setMetricsColumnTitle(result.metricsMonth);
                     });
                 })
                 .catch(error => {
@@ -317,44 +368,6 @@
                 });
         }
 
-        function syncZoomSchedule() {
-            const button = document.getElementById('wfmSyncButton');
-            const spinner = document.getElementById('wfmSyncSpinner');
-            const alertBox = document.getElementById('wfmSyncAlert');
-
-            button.disabled = true;
-            spinner.style.display = 'inline-block';
-            alertBox.style.display = 'none';
-
-            fetch('?handler=SyncZoomSchedule', {
-                method: 'POST',
-                headers: {
-                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
-                }
-            })
-                .then(response => response.json())
-                .then(result => {
-                    alertBox.className = result.success && !result.hasErrors ? 'alert alert-success' : 'alert alert-warning';
-                    alertBox.textContent = result.message || 'Sync finished.';
-                    alertBox.style.display = 'block';
-
-                    if (result.success) {
-                        loadZoomSchedule();
-                        loadZoomLastSync();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error syncing Zoom schedule:', error);
-                    alertBox.className = 'alert alert-danger';
-                    alertBox.textContent = 'The sync request failed. Check that the Zoom REST API is running.';
-                    alertBox.style.display = 'block';
-                })
-                .finally(() => {
-                    button.disabled = false;
-                    spinner.style.display = 'none';
-                });
-        }
-
         function handleTimeFilterChange(value) {
             // Future months are rendered disabled, but guard the selection anyway.
             const select = document.getElementById('timeFilter');
@@ -369,7 +382,70 @@
             loadZoomSchedule();
         }
 
-        document.getElementById('wfmSyncButton').addEventListener('click', syncZoomSchedule);
+        // The import control only renders for permitted users; the handler re-checks the policy,
+        // so a crafted request from anyone else is rejected server-side.
+        function importZendeskMetrics() {
+            const fileInput = document.getElementById('zendeskFile');
+            const button = document.getElementById('zendeskImportButton');
+            const spinner = document.getElementById('zendeskImportSpinner');
+            const alertBox = document.getElementById('zendeskImportAlert');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alertBox.className = 'alert alert-warning mt-2 mb-0';
+                alertBox.textContent = 'Choose a CSV file first.';
+                alertBox.style.display = 'block';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('csvFile', fileInput.files[0]);
+            formData.append('year', document.getElementById('zendeskYear').value);
+            formData.append('month', document.getElementById('zendeskMonth').value);
+
+            button.disabled = true;
+            spinner.style.display = 'inline-block';
+            alertBox.style.display = 'none';
+
+            fetch('?handler=ImportZendesk', {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                },
+                body: formData
+            })
+                .then(response => response.json())
+                .then(result => {
+                    // An import that moved nothing is reported as a warning, not a success -
+                    // it almost always means an already-imported file was picked by mistake.
+                    alertBox.className = !result.success
+                        ? 'alert alert-warning mt-2 mb-0'
+                        : (result.nothingChanged ? 'alert alert-warning mt-2 mb-0' : 'alert alert-success mt-2 mb-0');
+
+                    let text = result.message || 'Import finished.';
+                    if (result.unmatchedAgents && result.unmatchedAgents.length) {
+                        text += ` Unmatched (${result.unmatchedAgents.length}): ${result.unmatchedAgents.join(', ')}`;
+                    }
+                    alertBox.textContent = text;
+                    alertBox.style.display = 'block';
+
+                    if (result.success) {
+                        fileInput.value = '';
+                        loadZoomSchedule();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error importing Zendesk metrics:', error);
+                    alertBox.className = 'alert alert-danger mt-2 mb-0';
+                    alertBox.textContent = 'The import request failed.';
+                    alertBox.style.display = 'block';
+                })
+                .finally(() => {
+                    button.disabled = false;
+                    spinner.style.display = 'none';
+                });
+        }
+
+        document.getElementById('zendeskImportButton')?.addEventListener('click', importZendeskMetrics);
         document.getElementById('wfmGroupBy').addEventListener('change', loadZoomSchedule);
         document.getElementById('wfmActivity').addEventListener('change', loadZoomSchedule);
         document.getElementById('refreshButton').addEventListener('click', () => {

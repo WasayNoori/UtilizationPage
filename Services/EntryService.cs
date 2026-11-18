@@ -40,24 +40,27 @@ namespace UtilizationPage_ASP.Services
                     throw new InvalidOperationException("Base connection string not found in configuration.");
                 }
 
-                // In Development, use the complete connection string from appsettings.Development.json
-                if (environment == "Development")
-                {
-                    _connectionString = baseConnectionString;
-                    _logger.LogInformation("Using development connection string with embedded credentials");
-                }
-                // In Production, replace the password placeholder with Azure configuration value
-                else
+                // Substitute on the placeholder rather than on the environment. A connection
+                // string that already carries its password is used as-is, in any environment;
+                // one with {0} is filled from Readerpass, in any environment. Keying this off
+                // "is this Development" broke the moment the development settings were repointed
+                // at the cloud database, which uses the {0} form.
+                if (baseConnectionString.Contains("{0}"))
                 {
                     var dbPassword = configuration["Readerpass"];
                     if (string.IsNullOrEmpty(dbPassword))
                     {
-                        _logger.LogError("Database password not found in Azure configuration.");
-                        throw new InvalidOperationException("Database password not found in Azure configuration.");
+                        _logger.LogError("Database password not found in configuration.");
+                        throw new InvalidOperationException("Database password not found in configuration.");
                     }
 
                     _connectionString = baseConnectionString.Replace("{0}", dbPassword);
-                    _logger.LogInformation("Using production connection string with Azure-sourced password");
+                    _logger.LogInformation("Using connection string with the password from Readerpass");
+                }
+                else
+                {
+                    _connectionString = baseConnectionString;
+                    _logger.LogInformation("Using connection string with embedded credentials");
                 }
 
                 _logger.LogInformation("Database connection string configured successfully");

@@ -58,10 +58,26 @@ else
     });
 }
 
+// Who may import Zendesk metric exports. Comma-separated emails in configuration, so adding
+// someone is an App Service setting change rather than a deployment. Declared after the
+// environment branches above so it applies to both authentication schemes.
+var metricImporters = (builder.Configuration["MetricImport:AllowedEmails"] ?? string.Empty)
+    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("CanImportMetrics", policy => policy.RequireAssertion(context =>
+        metricImporters.Contains(
+            context.User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
+            StringComparer.OrdinalIgnoreCase)));
+});
+
 builder.Services.AddRazorPages().AddMicrosoftIdentityUI();
 builder.Services.AddScoped<EntryService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<ZoomScheduleService>();
+builder.Services.AddScoped<ZendeskImportService>();
+builder.Services.AddScoped<ZendeskMetricsService>();
 builder.Logging.AddAzureWebAppDiagnostics();
 
 // Add session support

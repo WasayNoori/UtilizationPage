@@ -44,6 +44,10 @@ namespace UtilizationPage_ASP.Services
         public int ScheduledMinutes { get; set; }
         public int PaidMinutes { get; set; }
 
+        // Zendesk % To Target for the month the selected period ends in. Set on agent rows only;
+        // null everywhere else, and null for agents with no imported metrics.
+        public string PercentToTarget { get; set; }
+
         public string SchedulingGroup { get; set; }
         public List<ZoomScheduleRowViewModel> Children { get; set; }
     }
@@ -58,6 +62,11 @@ namespace UtilizationPage_ASP.Services
         public List<ZoomScheduleRowViewModel> Rows { get; set; } = new List<ZoomScheduleRowViewModel>();
         public List<string> ActivityNames { get; set; } = new List<string>();
         public List<string> ActivityTypes { get; set; } = new List<string>();
+
+        /// <summary>
+        ///     Short name of the month the % To Target column reflects, for the column header.
+        /// </summary>
+        public string MetricsMonth { get; set; }
     }
 
     /// <summary>
