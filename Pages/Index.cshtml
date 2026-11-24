@@ -46,36 +46,28 @@
                         <option value="">Loading users...</option>
                     </select>
                 </div>
-                <div class="time-filter-container" style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                <div class="time-filter-container d-flex gap-3" style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                  <div>
+                    <label for="yearFilter" class="form-label me-2" style="font-weight: 500; color: #0d6efd;">Year:</label>
+                    <select id="yearFilter" class="form-select" style="width: auto; border-color: #0d6efd;" onchange="handleYearChange(this.value)">
+                        @* Filled by buildYearOptions() from the browser's date *@
+                    </select>
+                  </div>
+                  <div>
                     <label for="timeFilter" class="form-label me-2" style="font-weight: 500; color: #0d6efd;">Time Period:</label>
                     <select id="timeFilter" class="form-select" style="width: auto; min-width: 200px; border-color: #0d6efd;" onchange="handleTimeFilterChange(this.value)">
-                        <optgroup label="Recent Periods">
+                        <optgroup id="recentOptions" label="Recent Periods">
                             <option value="Today">Today</option>
                             <option value="Yesterday">Yesterday</option>
                             <option value="TwoWeeksAgo">Last 2 Weeks</option>
                             <option value="ThisWeek">This Week</option>
                             <option value="LastWeek">Last Week</option>
                         </optgroup>
-                        <optgroup label="Monthly View">
-                            @{
-                                var currentMonth = DateTime.Now.Month;
-                                var currentYear = DateTime.Now.Year;
-                                
-                                for (int month = 1; month <= 12; month++) {
-                                    var date = new DateTime(currentYear, month, 1);
-                                    var monthName = date.ToString("MMMM");
-                                    var value = $"Month_{currentYear}_{month:00}";
-                                    var isFutureMonth = month > currentMonth;
-                                    
-                                    if (isFutureMonth) {
-                                        <option value="@value" disabled style="color: #aaa;">@monthName</option>
-                                    } else {
-                                        <option value="@value">@monthName</option>
-                                    }
-                                }
-                            }
+                        <optgroup id="monthOptions" label="Monthly View">
+                            @* Filled by buildMonthOptions() for the selected year *@
                         </optgroup>
                     </select>
+                  </div>
                 </div>
             </div>
         </div>
@@ -154,7 +146,7 @@
             <div style="margin-top: 20px; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
                 <table class="table" style="width: 100%;">
                     <thead>
-                        <tr><th colspan="13">Monthly User Hours vs Team Average</th></tr>
+                        <tr><th colspan="13">Monthly User Hours vs Team Average (<span id="comparisonYear"></span>)</th></tr>
                         <tr>
                             <th>Metric</th>
                             <th>Jan</th>
@@ -275,7 +267,7 @@
                         <!-- Time Breakdown Card -->
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(to right, #2c3e50, #3498db); color: white; padding: 15px;">
-                                <h5 class="mb-0" style="font-size: 24px; font-weight: 500;">Time Distribution (Year to Date)</h5>
+                                <h5 class="mb-0" style="font-size: 24px; font-weight: 500;">Time Distribution (<span id="timeBreakdownYear">Year to Date</span>)</h5>
 
 
                                 <div style="display: flex; align-items: center;">
@@ -559,8 +551,84 @@
             entries: {},
             weeklySummary: {},
             monthlyData: {},
-            monthlyComparison: null
+            monthlyComparison: {} // keyed by `${year}_${userEmail}`
         };
+
+        // How many years back the Year dropdown offers (current year included)
+        const YEARS_TO_SHOW = 3;
+        const MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+                             "July", "August", "September", "October", "November", "December"];
+
+        function getSelectedYear() {
+            const value = parseInt(document.getElementById('yearFilter').value);
+            return isNaN(value) ? new Date().getFullYear() : value;
+        }
+
+        function buildYearOptions() {
+            const select = document.getElementById('yearFilter');
+            const currentYear = new Date().getFullYear();
+            select.innerHTML = '';
+            for (let year = currentYear; year > currentYear - YEARS_TO_SHOW; year--) {
+                select.add(new Option(year, year));
+            }
+            select.value = currentYear;
+        }
+
+        // Lists only months that have started: up to this month for the current year, all 12 for past years
+        function buildMonthOptions(year) {
+            const group = document.getElementById('monthOptions');
+            const now = new Date();
+            const lastMonth = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+            group.label = `${year} Months`;
+            group.innerHTML = '';
+            for (let month = 1; month <= lastMonth; month++) {
+                const value = `Month_${year}_${String(month).padStart(2, '0')}`;
+                group.appendChild(new Option(MONTH_NAMES[month - 1], value));
+            }
+        }
+
+        // Today / This Week / etc. are relative to today, so they're only offered for the current year
+        const recentPeriods = document.getElementById('recentOptions');
+        function setRecentPeriodsVisible(visible) {
+            const select = document.getElementById('timeFilter');
+            if (visible && !recentPeriods.isConnected) select.insertBefore(recentPeriods, select.firstChild);
+            if (!visible && recentPeriods.isConnected) recentPeriods.remove();
+        }
+
+        function handleYearChange(yearValue) {
+            const year = parseInt(yearValue);
+            const isCurrentYear = year === new Date().getFullYear();
+            const select = document.getElementById('timeFilter');
+            const previousValue = select.value;
+
+            buildMonthOptions(year);
+            setRecentPeriodsVisible(isCurrentYear);
+
+            if (previousValue.startsWith('Month_') || !isCurrentYear) {
+                // Keep the same month in the new year (a recent period maps to this month),
+                // or the latest available one
+                const month = previousValue.startsWith('Month_')
+                    ? previousValue.split('_')[2]
+                    : String(new Date().getMonth() + 1).padStart(2, '0');
+                const sameMonth = `Month_${year}_${month}`;
+                const options = document.getElementById('monthOptions').querySelectorAll('option');
+                select.value = Array.from(options).some(o => o.value === sameMonth)
+                    ? sameMonth
+                    : options[options.length - 1].value;
+                handleTimeFilterChange(select.value);
+            } else {
+                // Recent periods are relative to today; only the year-scoped table changes
+                select.value = previousValue;
+                loadMonthlyComparison();
+            }
+
+            // Year-scoped panels on the Trends and Profile tabs
+            loadWeeklyData();
+            loadTimeBreakdown(document.getElementById('teamFilter').value);
+        }
+
+        buildYearOptions();
+        buildMonthOptions(getSelectedYear());
 
         // Different cache durations
         const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes for regular data
@@ -575,12 +643,16 @@
             
             const now = new Date().getTime();
             
-            // If it's a past month, use longer cache duration
+            // Past months don't expire. Key format: Month_YYYY_MM_userEmail
             if (type === 'monthly') {
-                const currentMonth = new Date().getMonth() + 1;
-                const selectedMonth = parseInt(cacheKey.split('_')[1]);
-                if (selectedMonth < currentMonth) {
-                    return true; // Past months don't expire
+                const parts = cacheKey.split('_');
+                const selectedYear = parseInt(parts[1]);
+                const selectedMonth = parseInt(parts[2]);
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth() + 1;
+                if (selectedYear < currentYear || (selectedYear === currentYear && selectedMonth < currentMonth)) {
+                    return true;
                 }
             }
             
@@ -738,23 +810,31 @@
         }
 
         function loadMonthlyComparison(forceRefresh = false) {
+            const year = getSelectedYear();
+            const cacheKey = `${year}_${currentUserEmail}`;
+            document.getElementById('comparisonYear').textContent = year;
+
             // Check cache first
-            if (!forceRefresh && dataCache.monthlyComparison && 
-                (new Date().getTime() - dataCache.monthlyComparison.timestamp) < CACHE_DURATION) {
-                updateMonthlyComparisonTable(dataCache.monthlyComparison.data);
+            const cached = dataCache.monthlyComparison[cacheKey];
+            if (!forceRefresh && cached &&
+                (new Date().getTime() - cached.timestamp) < CACHE_DURATION) {
+                updateMonthlyComparisonTable(cached.data);
                 return;
             }
 
-            fetch(`/Index?handler=MonthlyComparison&userEmail=${encodeURIComponent(currentUserEmail)}`)
+            fetch(`/Index?handler=MonthlyComparison&userEmail=${encodeURIComponent(currentUserEmail)}&year=${year}`)
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
                         // Store in cache
-                        dataCache.monthlyComparison = {
+                        dataCache.monthlyComparison[cacheKey] = {
                             data: result.data,
                             timestamp: new Date().getTime()
                         };
-                        updateMonthlyComparisonTable(result.data);
+                        // Ignore a late response if the year changed while it was loading
+                        if (getSelectedYear() === year) {
+                            updateMonthlyComparisonTable(result.data);
+                        }
                     }
                 })
                 .catch(error => console.error('Error:', error));
@@ -984,7 +1064,7 @@
             }
 
             console.log('Loading weekly data for user:', currentUserEmail);
-            fetch(`/Index?handler=WeeklyVisualizationData&userEmail=${encodeURIComponent(currentUserEmail)}`)
+            fetch(`/Index?handler=WeeklyVisualizationData&userEmail=${encodeURIComponent(currentUserEmail)}&year=${getSelectedYear()}`)
                 .then(response => {
                     console.log('Weekly data response received:', response.status);
                     return response.json();
@@ -1247,7 +1327,10 @@
         });
 
         function loadTimeBreakdown(team = 'All') {
-            fetch(`/Index?handler=TimeBreakdown&team=${encodeURIComponent(team)}`)
+            const year = getSelectedYear();
+            document.getElementById('timeBreakdownYear').textContent =
+                year === new Date().getFullYear() ? `${year} Year to Date` : year;
+            fetch(`/Index?handler=TimeBreakdown&team=${encodeURIComponent(team)}&year=${year}`)
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {

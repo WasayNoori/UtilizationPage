@@ -336,7 +336,7 @@ namespace UtilizationPage_ASP.Services
             return summary;
         }
 
-        public async Task<List<MonthlyHoursSummary>> GetMonthlyHoursComparisonAsync(string userEmail)
+        public async Task<List<MonthlyHoursSummary>> GetMonthlyHoursComparisonAsync(string userEmail, int? year = null)
         {
             var monthlyData = new List<MonthlyHoursSummary>();
 
@@ -351,6 +351,10 @@ namespace UtilizationPage_ASP.Services
                     {
                         command.CommandType = System.Data.CommandType.StoredProcedure;
                         command.Parameters.AddWithValue("@UserEmail", !string.IsNullOrEmpty(userEmail) ? userEmail : DBNull.Value);
+                        if (year.HasValue)
+                        {
+                            command.Parameters.AddWithValue("@Year", year.Value);
+                        }
 
                         using (var reader = await command.ExecuteReaderAsync())
                         {
@@ -710,7 +714,7 @@ namespace UtilizationPage_ASP.Services
             return weekendEntries;
         }
 
-        public async Task<List<WeeklyDataViewModel>> GetWeeklyVisualizationDataAsync(string userEmail)
+        public async Task<List<WeeklyDataViewModel>> GetWeeklyVisualizationDataAsync(string userEmail, int? year = null)
         {
             _logger.LogInformation($"Getting weekly visualization data for user: {userEmail}");
             var weeklyData = new List<WeeklyDataViewModel>();
@@ -729,6 +733,10 @@ namespace UtilizationPage_ASP.Services
                     {
                         command.CommandType = CommandType.StoredProcedure;
                         command.Parameters.AddWithValue("@Email", userEmail);
+                        if (year.HasValue)
+                        {
+                            command.Parameters.AddWithValue("@Year", year.Value);
+                        }
 
                         using (var reader = await command.ExecuteReaderAsync())
                         {
@@ -916,9 +924,9 @@ namespace UtilizationPage_ASP.Services
                                 var title = reader.GetString(reader.GetOrdinal("Title"));
                                 var boardid = reader.GetInt64(reader.GetOrdinal("BoardID"));
                                 var getCountYTD = await GetTopForBoard(boardid);
-                                // Calculate last month (if current month is January, last month is 12)
-                                int lastMonth = DateTime.Now.Month == 1 ? 12 : DateTime.Now.Month - 1;
-                                var getCountforMonth = await GetTopForBoard(boardid, lastMonth);
+                                // Last month and its year (in January this is December of the prior year)
+                                var lastMonthDate = DateTime.Now.AddMonths(-1);
+                                var getCountforMonth = await GetTopForBoard(boardid, lastMonthDate.Month, lastMonthDate.Year);
 
                                 topBraslist.Add(new TopBrassModel { Title = title, UserHoursYtd = getCountYTD, UserHoursLastMonth = getCountforMonth });
 
@@ -943,7 +951,7 @@ namespace UtilizationPage_ASP.Services
 
         }
 
-        private async Task<string> GetTopForBoard(long boardId, int? monthNumber = null)
+        private async Task<string> GetTopForBoard(long boardId, int? monthNumber = null, int? year = null)
         {
 
             string formattedResult = string.Empty;
@@ -962,6 +970,11 @@ namespace UtilizationPage_ASP.Services
                         if (monthNumber.HasValue)
                         {
                             command.Parameters.AddWithValue("@month", monthNumber.Value);
+                        }
+
+                        if (year.HasValue)
+                        {
+                            command.Parameters.AddWithValue("@Year", year.Value);
                         }
 
                         using (SqlDataReader reader = await command.ExecuteReaderAsync())
@@ -999,7 +1012,7 @@ namespace UtilizationPage_ASP.Services
 
         #region Breakdown
 
-        public async Task<List<TimeBreakDownModel>>GetTimeBreakdown(string Team)
+        public async Task<List<TimeBreakDownModel>>GetTimeBreakdown(string Team, int? year = null)
         {
         
             var hoursbreakdown=new List <TimeBreakDownModel>();
@@ -1018,6 +1031,10 @@ namespace UtilizationPage_ASP.Services
                         if(!string.IsNullOrEmpty(Team) && Team!="All")
                         {
                             command.Parameters.AddWithValue("@Team",teamparam);
+                        }
+                        if (year.HasValue)
+                        {
+                            command.Parameters.AddWithValue("@Year", year.Value);
                         }
 
                         using (var reader = await command.ExecuteReaderAsync())

@@ -301,6 +301,42 @@ namespace UtilizationPage_ASP.Services
                 .ToList();
         }
 
+        /// <summary>
+        ///     Zoom WFM activities that count toward the team's OTG total. Matched ignoring case,
+        ///     spaces and punctuation, so "OTG Billable" also matches Zoom's "OTG - Billable".
+        /// </summary>
+        private static readonly string[] OtgActivityNames =
+        {
+            "Instructing",
+            "Mentoring",
+            "Professional Dev",
+            "Project",
+            "KCS",
+            "OTG",
+            "OTG Billable"
+        };
+
+        private static readonly HashSet<string> NormalizedOtgActivityNames =
+            new HashSet<string>(OtgActivityNames.Select(NormalizeActivityName));
+
+        private static string NormalizeActivityName(string name) =>
+            new string((name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+
+        /// <summary>
+        ///     Minutes of OTG time scheduled across the whole team today: the activities in
+        ///     <see cref="OtgActivityNames"/>, using the same "today" as the Today filter.
+        /// </summary>
+        public async Task<int> GetOtgMinutesTodayAsync()
+        {
+            var today = DateTime.Now.Date;
+            var entries = await GetScheduleEntriesAsync(today, today, null);
+
+            return entries
+                .Where(e => !string.IsNullOrEmpty(e.ScheduleActivityId)
+                            && NormalizedOtgActivityNames.Contains(NormalizeActivityName(e.ActivityName)))
+                .Sum(e => GetDurationMinutes(e.StartTime, e.EndTime));
+        }
+
         public async Task<List<ZoomScheduleEntry>> GetScheduleEntriesAsync(DateTime startDate, DateTime endDate, string userEmail)
         {
             var entries = new List<ZoomScheduleEntry>();

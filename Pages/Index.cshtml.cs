@@ -121,12 +121,12 @@ public class IndexModel : PageModel
         }
     }
 
-    public async Task<IActionResult> OnGetMonthlyComparisonAsync(string userEmail = null)
+    public async Task<IActionResult> OnGetMonthlyComparisonAsync(string userEmail = null, int? year = null)
     {
         try
         {
             var selectedUserEmail = GetSelectedUserEmail(userEmail);
-            var data = await _entryService.GetMonthlyHoursComparisonAsync(selectedUserEmail);
+            var data = await _entryService.GetMonthlyHoursComparisonAsync(selectedUserEmail, year);
             return new JsonResult(new { success = true, data });
         }
         catch (Exception ex)
@@ -266,11 +266,11 @@ public class IndexModel : PageModel
         }
     }
 
-    public async Task<IActionResult> OnGetTimeBreakdownAsync(string team = "All")
+    public async Task<IActionResult> OnGetTimeBreakdownAsync(string team = "All", int? year = null)
     {
         try
         {
-            var breakdownData = await _entryService.GetTimeBreakdown(team);
+            var breakdownData = await _entryService.GetTimeBreakdown(team, year);
             return new JsonResult(new { success = true, data = breakdownData });
         }
         catch (Exception ex)
@@ -280,12 +280,12 @@ public class IndexModel : PageModel
         }
     }
 
-    public async Task<IActionResult> OnGetWeeklyVisualizationDataAsync(string userEmail = null)
+    public async Task<IActionResult> OnGetWeeklyVisualizationDataAsync(string userEmail = null, int? year = null)
     {
         try
         {
             var selectedUserEmail = GetSelectedUserEmail(userEmail);
-            var visualizationData = await _entryService.GetWeeklyVisualizationDataAsync(selectedUserEmail);
+            var visualizationData = await _entryService.GetWeeklyVisualizationDataAsync(selectedUserEmail, year);
             return new JsonResult(new { success = true, data = visualizationData });
         }
         catch (Exception ex)

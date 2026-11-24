@@ -6,12 +6,33 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/UtilizationPage_ASP.styles.css" asp-append-version="true" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
 </head>
+@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
+}
 <body>
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container">
                @*  <a class="navbar-brand" asp-area="" asp-page="/Index">UtilizationPage_ASP</a> *@
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <div class="page-switcher" role="navigation" aria-label="Utilization dashboards">
+                        <a asp-area="" asp-page="/Index"
+                           class="page-switcher-link @(currentPage == "/Index" ? "active" : "")"
+                           aria-current="@(currentPage == "/Index" ? "page" : null)">
+                            <i class="fas fa-drafting-compass" aria-hidden="true"></i>
+                            Engineering
+                        </a>
+                        <a asp-area="" asp-page="/SupportUtilization"
+                           class="page-switcher-link @(currentPage == "/SupportUtilization" ? "active" : "")"
+                           aria-current="@(currentPage == "/SupportUtilization" ? "page" : null)">
+                            <i class="fas fa-headset" aria-hidden="true"></i>
+                            Tech Support
+                        </a>
+                    </div>
+                }
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>

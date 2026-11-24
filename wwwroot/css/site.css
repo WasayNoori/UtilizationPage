@@ -22,6 +22,47 @@ body {
 }
 
 
+/* Pill switcher between the Engineering and Tech Support dashboards (navbar in _Layout).
+   Selectors are doubled up to outrank the layout's scoped `a { color }` rule. */
+.page-switcher {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    background-color: #f1f3f5;
+    border: 1px solid #dee2e6;
+    border-radius: 999px;
+}
+
+.page-switcher .page-switcher-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+    border-radius: 999px;
+    color: #495057;
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.page-switcher .page-switcher-link:hover {
+    color: #0d6efd;
+    background-color: #e7f1ff;
+}
+
+.page-switcher .page-switcher-link.active {
+    color: #fff;
+    background-color: #0d6efd;
+    box-shadow: 0 2px 6px rgba(13, 110, 253, .35);
+}
+
+.page-switcher .page-switcher-link:focus-visible {
+    outline: 2px solid #258cfb;
+    outline-offset: 2px;
+}
+
 .page-title {
     font-family: Luminari, fantasy;
     font-size: 2rem;

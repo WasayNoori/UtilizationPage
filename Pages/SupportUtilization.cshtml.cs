@@ -438,6 +438,20 @@ public class SupportUtilizationModel : PageModel
         }
     }
 
+    public async Task<IActionResult> OnGetOtgMinutesTodayAsync()
+    {
+        try
+        {
+            var minutes = await _zoomScheduleService.GetOtgMinutesTodayAsync();
+            return new JsonResult(new { success = true, minutes });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error getting today's OTG hours: {ex.Message}");
+            return new JsonResult(new { success = false, message = "Error retrieving OTG hours" });
+        }
+    }
+
     public async Task<IActionResult> OnGetZoomLastSyncAsync()
     {
         try
